@@ -220,6 +220,7 @@
   .install .s{ font-size:13.5px; color:var(--dim); margin-top:2px; }
   .install ol{ margin:8px 0 0 18px; font-size:14px; }
   .install ol li{ margin:3px 0; }
+  .updbar{ position:fixed; top:calc(10px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:300; background:var(--accent); color:var(--accent-ink); border:none; border-radius:20px; padding:10px 18px; font-weight:700; font-size:14px; box-shadow:0 6px 20px rgba(0,0,0,0.2); cursor:pointer; }
   .signin{ max-width:420px; margin:40px auto 0; }
   .signin h1{ font-size:26px; letter-spacing:-0.4px; margin-bottom:6px; }
   .err{ color:var(--red); font-size:13.5px; margin-top:10px; min-height:18px; }
@@ -1987,7 +1988,26 @@
     else if(e.target.id === 'code') verify();
   });
 
-  if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function(){});
+  // Updates: check for a new version whenever the app comes back to the screen (installed
+  // apps usually resume instead of reloading) and every 10 minutes. When a new version
+  // takes over, reload straight away unless the buyer is in the middle of something.
+  if('serviceWorker' in navigator && location.protocol === 'https:'){
+    var hadController = !!navigator.serviceWorker.controller, reloading = false;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg){
+      function check(){ reg.update().catch(function(){}); }
+      document.addEventListener('visibilitychange', function(){ if(!document.hidden) check(); });
+      setInterval(check, 10 * 60 * 1000);
+    }).catch(function(){});
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if(!hadController || reloading){ hadController = true; return; }
+      var busy = !document.getElementById('sheet').classList.contains('hidden') || !document.getElementById('inv').classList.contains('hidden') ||
+        (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+      if(!busy){ reloading = true; location.reload(); return; }
+      var bar = document.getElementById('updbar');
+      if(!bar){ bar = document.createElement('button'); bar.id = 'updbar'; bar.className = 'updbar'; bar.textContent = 'Update ready — tap to refresh';
+        bar.onclick = function(){ reloading = true; location.reload(); }; document.body.appendChild(bar); }
+    });
+  }
   boot();
 })();
 </script>
