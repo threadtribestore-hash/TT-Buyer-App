@@ -112,6 +112,31 @@
   .home .att-t{ font-size:14px; }
   .kpi-foot span:first-child{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-right:8px; }
   .scard .p{ white-space:nowrap; }
+  .avatar{ width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background:var(--panel); color:var(--accent); font-weight:700; font-size:13px; cursor:pointer; flex:none; }
+  .avatar.on{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .nbadge{ position:absolute; top:2px; left:calc(50% + 6px); background:var(--amber); color:#fff; font-size:10.5px; min-width:17px; height:17px; border-radius:9px; display:flex; align-items:center; justify-content:center; padding:0 4px; }
+  .stats3{ grid-template-columns:repeat(3, 1fr); }
+  .stats3 .v{ font-size:19px; }
+  .stock-intro{ text-align:center; padding:26px 18px; }
+  .stock-list{ padding:4px 12px; }
+  .srow{ display:flex; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); }
+  .srow:last-child{ border-bottom:none; }
+  .s-ph{ width:46px; height:46px; flex:none; border-radius:10px; overflow:hidden; background:var(--panel2); display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .s-ph img{ width:100%; height:100%; object-fit:cover; }
+  .s-b{ flex:1; min-width:0; }
+  .s-n{ font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .s-bar{ height:5px; background:var(--panel2); border-radius:3px; margin:5px 0 3px; overflow:hidden; }
+  .s-bar i{ display:block; height:100%; background:var(--accent); border-radius:3px; }
+  .s-bar i.low{ background:var(--amber); }
+  .s-m{ font-size:11.5px; color:var(--dim); }
+  .s-r{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex:none; }
+  .s-q{ font-size:19px; font-weight:700; }
+  .s-q.low{ color:var(--amber); }
+  .s-btns{ display:flex; gap:4px; }
+  .s-btns button{ width:28px; height:26px; border-radius:8px; border:1px solid var(--line); background:var(--panel); font-size:16px; line-height:1; cursor:pointer; }
+  .s-r .link{ padding:0; font-size:12.5px; }
+  .stag{ font-size:11.5px; color:var(--dim); margin-top:2px; font-weight:600; }
+  .stag.low{ color:var(--amber); }
   .quote{ display:flex; gap:10px; align-items:center; width:100%; flex:none; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:8px 12px; text-align:left; cursor:pointer; font:inherit; color:var(--text); }
   .q-ic{ flex:none; font-size:16px; }
   .q-t{ font-size:13.5px; font-style:italic; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -350,7 +375,7 @@
 <div class="wrap">
   <div class="top" id="top">
     <div class="top-left"><div class="eyebrow" id="eyebrow">Thread Tribe Trade</div><div class="title" id="title">Welcome</div></div>
-    <div class="topbtns"><button class="installpill hidden" id="installPill" data-a="install">⬇ Install app</button><button class="sync hidden" id="sync"><i></i><span id="syncText">Live</span></button></div>
+    <div class="topbtns"><button class="installpill hidden" id="installPill" data-a="install">⬇ Install app</button><button class="sync hidden" id="sync"><i></i><span id="syncText">Live</span></button><button class="avatar hidden" id="avatar" data-go="account" aria-label="Account"></button></div>
   </div>
   <div id="signin" class="hidden"></div>
   <div id="screen" class="hidden"></div>
@@ -362,7 +387,7 @@
   <button data-tab="shop"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Shop</button>
   <button data-tab="orders"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Supplies</button>
   <button data-tab="business"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Business</button>
-  <button data-tab="account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Account</button>
+  <button data-tab="stock"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/></svg>Stock<span class="nbadge hidden" id="stockBadge"></span></button>
 </nav>
 <div class="scrim hidden" id="scrim"></div>
 <div class="sheet hidden" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
@@ -804,9 +829,14 @@
     var navTab = tab === 'cart' ? 'shop' : tab;
     nav.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === navTab); });
     document.getElementById('eyebrow').textContent = pack().client.name || 'Thread Tribe Trade';
-    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Supplies', business: 'Business', account: 'Account' };
+    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Supplies', stock: 'Stock', business: 'Business', account: 'Account' };
     document.getElementById('title').textContent = tab === 'home' ? greeting() + ', ' + ((pack().client.contact || pack().client.name || '').split(' ')[0] || 'there') : titles[tab];
-    screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, business: renderBusiness, account: renderAccount })[tab]();
+    screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, stock: renderStock, business: renderBusiness, account: renderAccount })[tab]();
+    var av = document.getElementById('avatar');
+    av.classList.remove('hidden'); av.classList.toggle('on', tab === 'account');
+    av.textContent = ((pack().client.contact || pack().client.name || '?').trim().split(/\s+/).map(function(w){ return w[0]; }).join('').slice(0, 2) || '?').toUpperCase();
+    var sb = document.getElementById('stockBadge'), lowN = settings().stockStart ? lowStock().length : 0;
+    sb.textContent = lowN; sb.classList.toggle('hidden', !lowN);
     document.body.classList.toggle('fit', tab === 'home');
     if(store.cart.length && tab !== 'cart'){
       var ct = cartTotals();
@@ -901,7 +931,8 @@
     var od = dues().filter(function(d){ return daysSince(d.oldest) > 15; });
     if(od.length) out.push({ ic: '💰', cls: 'warn', t: money(od.reduce(function(t, d){ return t + d.total; }, 0)) + ' overdue from ' + od.length + ' buyer' + (od.length === 1 ? '' : 's'), s: 'More than 15 days — tap to send reminders', go: 'business', bseg: 'invoices' });
     var low = lowStock();
-    if(low.length) out.push({ ic: '⚠️', cls: 'warn', t: low.length + ' toy' + (low.length === 1 ? '' : 's') + ' running low', s: low.slice(0, 3).map(function(r){ return r.name + ' (' + r.onHand + ')'; }).join(', '), go: 'business', bseg: 'stock' });
+    if(low.length) out.push({ ic: '⚠️', cls: 'warn', t: low.length + ' toy' + (low.length === 1 ? '' : 's') + ' running low', s: low.slice(0, 3).map(function(r){ return r.name + ' (' + r.onHand + ')'; }).join(', '), go: 'stock' });
+    if(!cloud.bizMissing && !settings().stockStart) out.push({ ic: '📦', cls: 'info', t: 'Track your stock', s: 'Know what you have and get low-stock warnings', go: 'stock' });
     var waiting = openRequests().length;
     if(waiting) out.push({ ic: '⏳', cls: '', t: waiting + ' request' + (waiting === 1 ? '' : 's') + ' with Thread Tribe', s: 'They’ll reply here', go: 'orders', seg: 'requests' });
     if(totalDue() > 0) out.push({ ic: '🧾', cls: '', t: money(totalDue()) + ' due to Thread Tribe', s: 'Pay on delivery', go: 'account' });
@@ -1025,6 +1056,7 @@
     collectionsLive().forEach(function(c){ out.push({ ic: '🎁', cls: 'good', t: c.name, s: (c.items || []).length + ' toys' + (c.note ? ' · ' + c.note : ''), a: 'open-seg', v: 'col:' + c.id }); });
     // urgency: shipments and money first, then stock and replies, then the rest
     var rank = { '🚚': 1, '📦': 2, '💰': 3, '⚠️': 4, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
+    out.forEach(function(x){ if(x.t === 'Track your stock') x.ic2 = 1; });
     return out.sort(function(a, b){ return (rank[a.ic] || 9) - (rank[b.ic] || 9); });
   }
   function attRow(x){
@@ -1167,7 +1199,7 @@
           '<div class="b"><div class="n">' + esc(p.name) + '</div><div class="w">' + esc([p.weight ? Math.round(p.weight) + ' g' : '', p.color].filter(Boolean).join(' · ')) + '</div>' +
           (onRequest(p) ? '<div class="p por">Price on request</div>' + (p.retail ? '<div class="w">Retail ' + money(p.retail) + '</div>' : '')
             : '<div class="p">' + money(price) + (price < p.base ? '<s>' + money(p.base) + '</s>' : '') + '</div>' +
-              (m ? '<div class="mg">Retail ' + money(p.retail) + ' · ' + m.toFixed(1) + '× margin</div>' : '')) + '</div></button>';
+              (m ? '<div class="mg">Retail ' + money(p.retail) + ' · ' + m.toFixed(1) + '× margin</div>' : '')) + stockTag(p) + '</div></button>';
       }).join(''); })() + '</div>' : '<div class="card empty"><b>Nothing matches</b>Try another search or clear the filters.' + (n ? '<div class="btns" style="justify-content:center;"><button class="btn small" data-a="clear-filters">Clear filters</button></div>' : '') + '</div>');
   }
   // ======================= share a catalogue under the reseller's own name =======================
@@ -1257,6 +1289,12 @@
     else window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
   }
 
+  function stockTag(p){
+    if(!settings().stockStart) return '';
+    var oh = onHand(p.id);
+    if(oh === null) return '';
+    return '<div class="stag' + (oh <= num(settings().lowStock) ? ' low' : '') + '">You have ' + oh + '</div>';
+  }
   function filterSheet(){
     var f = store.filt;
     openSheet('<div class="sheet-h"><div class="t">Filter</div><button class="x" data-a="close">✕</button></div>' +
@@ -1292,6 +1330,7 @@
       (p.weight ? '<div class="row"><span class="muted">Weight</span><span class="r">' + Math.round(p.weight) + ' g</span></div>' : '') +
       (p.hours ? '<div class="row"><span class="muted">Print time</span><span class="r">' + p.hours + ' hrs / pc</span></div>' : '') +
       (p.size ? '<div class="row"><span class="muted">Size</span><span class="r">' + esc(p.size) + '</span></div>' : '') +
+      (settings().stockStart && onHand(p.id) !== null ? '<div class="row"><span class="muted">In your stock</span><span class="r"' + (onHand(p.id) <= num(settings().lowStock) ? ' style="color:var(--amber)"' : '') + '>' + onHand(p.id) + ' pcs</span></div>' : '') +
       (p.retail ? '<div class="row"><span class="muted">Suggested retail</span><span class="r">' + money(p.retail) + (margin(p) ? ' <span class="muted">· ' + margin(p).toFixed(1) + '× your price</span>' : '') + '</span></div>' : '') +
       '</div>' +
       '<label>Quantity (min ' + t.minPerProduct + ')</label><div class="qty"><button data-a="qty-" type="button">−</button><input id="pq" type="number" inputmode="numeric" min="' + t.minPerProduct + '" step="1" value="' + qty + '"><button data-a="qty+" type="button">+</button></div>' +
@@ -1576,9 +1615,9 @@
   function renderBusiness(){
     if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on invoicing and stock for your account.</div>';
     var invs = list('invoices'), custs = list('customers');
-    return '<div class="seg">' + [['invoices', 'Invoices', invs.length], ['customers', 'Customers', custs.length], ['stock', 'Stock', null], ['prices', 'Prices & discounts', null]].map(function(s){
+    return '<div class="seg">' + [['invoices', 'Invoices', invs.length], ['customers', 'Customers', custs.length], ['prices', 'Prices & discounts', null]].map(function(s){
       return '<button data-bseg="' + s[0] + '" class="' + (bizSeg === s[0] ? 'on' : '') + '">' + s[1] + (s[2] !== null ? '<span class="n">' + s[2] + '</span>' : '') + '</button>';
-    }).join('') + '</div>' + ({ invoices: renderInvoices, customers: renderCustomers, stock: renderStock, prices: renderPrices })[bizSeg]();
+    }).join('') + '</div>' + ({ invoices: renderInvoices, customers: renderCustomers, prices: renderPrices })[bizSeg === 'stock' ? 'invoices' : bizSeg]();
   }
   function invStatus(i){
     if(i.status === 'cancelled') return 'cancelled';
@@ -1615,20 +1654,6 @@
           '<div class="s">' + esc([c.city, c.phone].filter(Boolean).join(' · ')) + (num(c.discount) ? ' · ' + num(c.discount) + '% off' : '') + ' · ' + mine.length + ' invoices</div></div>' +
           (owed > 0.5 ? '<span class="chip soon">' + money(owed) + ' due</span>' : '') + '<span class="chev">›</span></button>';
       }).join('') : '<div class="card empty"><b>No customers yet</b>Add the wholesalers and importers you sell to. Give each their own discount.</div>');
-  }
-  function renderStock(){
-    var s = settings();
-    if(!s.stockStart) return '<div class="card"><b>Track your stock automatically</b><p class="muted" style="margin-top:6px">From the day you start, stock goes up when a Thread Tribe order is delivered and down when you invoice a buyer. Enter what you have on hand today to begin.</p>' +
-      '<div class="btns"><button class="btn primary block" data-a="start-stock">Start tracking from today</button></div></div>';
-    var rows = stockRows(), lim = num(s.lowStock);
-    return '<div class="card sum"><div class="row"><span class="muted">Tracking since</span><span class="r">' + fmtDate(s.stockStart) + '</span></div>' +
-      '<div class="row"><span class="muted">Warn me below</span><span class="r"><input id="lowStock" type="number" min="0" value="' + lim + '" style="width:90px;padding:6px 8px;text-align:right"></span></div></div>' +
-      '<div class="btns" style="margin-bottom:10px"><button class="btn small" data-a="adjust-stock">+ Adjust stock</button></div>' +
-      (rows.length ? '<div class="card">' + rows.map(function(r){
-        return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(r.name) + '</div><div class="muted">in ' + r.inQty + ' · sold ' + r.outQty + (r.adj ? ' · adjusted ' + (r.adj > 0 ? '+' : '') + r.adj : '') + '</div></div>' +
-          '<span class="r" style="color:' + (r.onHand <= lim ? 'var(--amber)' : 'inherit') + '">' + r.onHand + '</span>' +
-          (product(r.id) ? '<button class="btn small" data-a="quick-add" data-id="' + esc(r.id) + '">Reorder</button>' : '') + '</div>';
-      }).join('') + '</div>' : '<div class="card empty"><b>Nothing in stock yet</b>Deliveries from Thread Tribe after ' + fmtDate(s.stockStart) + ' appear here.</div>');
   }
   function renderPrices(){
     var s = settings(), cat = catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); });
@@ -1954,13 +1979,45 @@
   }
 
   // ---- stock ----
-  function adjustSheet(){
-    openSheet('<div class="sheet-h"><div class="t">Adjust stock</div><button class="x" data-a="close">✕</button></div>' +
+  // ======================= stock (its own tab) =======================
+  var stockQuery = '';
+  function renderStock(){
+    if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on stock for your account.</div>';
+    var s = settings();
+    if(!s.stockStart) return '<div class="card stock-intro"><div style="font-size:34px">📦</div><b>Know what you have, without counting</b>' +
+      '<p class="muted" style="margin-top:6px">Stock goes up when a Thread Tribe supply is delivered and down when you invoice a buyer. You get a warning before a toy runs out, and one tap to reorder it.</p>' +
+      '<p class="muted">Start today, then enter what you have on hand right now.</p>' +
+      '<div class="btns"><button class="btn primary block" data-a="start-stock">Start tracking my stock</button></div></div>';
+    var rows = stockRows(), lim = num(s.lowStock), q = stockQuery.toLowerCase();
+    var pcs = rows.reduce(function(t, r){ return t + Math.max(0, r.onHand); }, 0);
+    var value = rows.reduce(function(t, r){ var p = product(r.id); return t + (p && !onRequest(p) ? Math.max(0, r.onHand) * costOf(p) : 0); }, 0);
+    var low = rows.filter(function(r){ return r.onHand <= lim; });
+    var maxOn = Math.max.apply(null, rows.map(function(r){ return r.onHand; }).concat([lim * 3, 1]));
+    var shown = rows.filter(function(r){ return !q || r.name.toLowerCase().indexOf(q) !== -1; });
+    return '<div class="stats stats3"><div class="stat"><div class="k">On hand</div><div class="v">' + pcs.toLocaleString('en-IN') + '</div><div class="s">pieces</div></div>' +
+      '<div class="stat"><div class="k">Worth</div><div class="v">' + money(value) + '</div><div class="s">at your cost</div></div>' +
+      '<button class="stat" data-a="stock-low"><div class="k">Running low</div><div class="v"' + (low.length ? ' style="color:var(--amber)"' : '') + '>' + low.length + '</div><div class="s">below ' + lim + ' pcs</div></button></div>' +
+      (low.length ? '<div class="btns" style="margin:0 0 10px"><button class="btn primary block" data-a="restock-low">Restock all ' + low.length + ' low toys</button></div>' : '') +
+      '<div class="tools"><input id="sq" type="search" placeholder="Search stock" value="' + esc(stockQuery) + '" style="flex:1"><button class="btn small" data-a="adjust-stock">+ Adjust</button></div>' +
+      (shown.length ? '<div class="card stock-list">' + shown.map(function(r){
+        var p = product(r.id), isLow = r.onHand <= lim, w = Math.max(3, Math.min(100, Math.round(100 * Math.max(0, r.onHand) / maxOn)));
+        return '<div class="srow"><div class="s-ph">' + (p && p.photo ? '<img loading="lazy" alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
+          '<div class="s-b"><div class="s-n">' + esc(r.name) + '</div><div class="s-bar"><i class="' + (isLow ? 'low' : '') + '" style="width:' + w + '%"></i></div>' +
+          '<div class="s-m">in ' + r.inQty + ' · sold ' + r.outQty + (r.adj ? ' · adj ' + (r.adj > 0 ? '+' : '') + r.adj : '') + '</div></div>' +
+          '<div class="s-r"><div class="s-q' + (isLow ? ' low' : '') + '">' + r.onHand + '</div><div class="s-btns"><button data-a="adj-one" data-id="' + esc(r.id) + '" data-sign="-1" aria-label="Remove">−</button><button data-a="adj-one" data-id="' + esc(r.id) + '" data-sign="1" aria-label="Add">+</button></div>' +
+          (p ? '<button class="link" data-a="quick-add" data-id="' + esc(r.id) + '">Reorder</button>' : '') + '</div></div>';
+      }).join('') + '</div>' : '<div class="card empty"><b>' + (rows.length ? 'No match' : 'Nothing in stock yet') + '</b>' + (rows.length ? '' : 'Tap “+ Adjust” to add what you have now. Deliveries from Thread Tribe after ' + fmtDate(s.stockStart) + ' add up here.') + '</div>') +
+      '<div class="card sum" style="margin-top:12px"><div class="row"><span class="muted">Tracking since</span><span class="r">' + fmtDate(s.stockStart) + '</span></div>' +
+      '<div class="row"><span class="muted">Warn me below</span><span class="r"><input id="lowStock" type="number" min="0" value="' + lim + '" style="width:90px;padding:6px 8px;text-align:right"> pcs</span></div></div>';
+  }
+  function adjustSheet(productId, sign){
+    openSheet('<div class="sheet-h"><div class="t">' + (sign > 0 ? 'Add stock' : sign < 0 ? 'Remove stock' : 'Adjust stock') + '</div><button class="x" data-a="close">✕</button></div>' +
       '<p class="muted">For opening stock, damages, samples or a count correction.</p>' +
-      '<label>Toy</label><select id="a-prod">' + catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); }).map(function(p){ return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select>' +
-      '<label>Change (use − for less)</label><input id="a-qty" type="number" placeholder="e.g. 50 or -3">' +
-      '<label>Reason</label><input id="a-note" placeholder="Opening stock, damaged, count…">' +
+      '<label>Toy</label><select id="a-prod">' + catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); }).map(function(p){ return '<option value="' + esc(p.id) + '"' + (p.id === productId ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select>' +
+      '<label>' + (sign < 0 ? 'How many to remove' : sign > 0 ? 'How many to add' : 'Change (use − for less)') + '</label><input id="a-qty" type="number" inputmode="numeric" placeholder="' + (sign ? 'e.g. 10' : 'e.g. 50 or -3') + '" data-sign="' + (sign || 0) + '">' +
+      '<label>Reason</label><input id="a-note" placeholder="' + (sign < 0 ? 'Damaged, sample given, count…' : 'Opening stock, count…') + '">' +
       '<div class="btns"><button class="btn primary block" data-a="save-adjust">Save</button></div>');
+    setTimeout(function(){ var q = document.getElementById('a-qty'); if(q) q.focus(); }, 300);
   }
 
   // ======================= account =======================
@@ -2145,8 +2202,16 @@
     else if(act === 'del-customer'){ if(confirm('Delete this customer? Their past invoices stay.')){ remove('customers', id); closeSheet(); renderAll(); } }
     else if(act === 'start-stock'){ saveSettings({ stockStart: today() }); renderAll(); adjustSheet(); toast('Add what you have on hand today'); }
     else if(act === 'adjust-stock') adjustSheet();
+    else if(act === 'adj-one') adjustSheet(id, +a.getAttribute('data-sign'));
+    else if(act === 'stock-low'){ stockQuery = ''; var lim2 = num(settings().lowStock); toast(lowStock().length ? 'Low toys are at the top' : 'Nothing is running low'); window.scrollTo(0, 0); void lim2; }
+    else if(act === 'restock-low'){
+      var added = 0;
+      lowStock().forEach(function(r){ if(product(r.id)){ var ex = store.cart.find(function(x){ return x.productId === r.id; }); if(!ex){ store.cart.push({ productId: r.id, qty: Math.max(T().minPerProduct, 25), color: '' }); added++; } } });
+      save(); tab = 'cart'; renderAll(); toast(added ? added + ' low toy' + (added === 1 ? '' : 's') + ' added — set the quantities' : 'Already in your cart');
+    }
     else if(act === 'save-adjust'){
-      var pid = val('a-prod'), qn = Math.round(num(val('a-qty'))), pr = product(pid);
+      var pid = val('a-prod'), qn = Math.round(num(val('a-qty'))), pr = product(pid), sgn = +(document.getElementById('a-qty').getAttribute('data-sign') || 0);
+      if(sgn) qn = sgn * Math.abs(qn);
       if(!pr || !qn){ toast('Pick a toy and a quantity'); return; }
       put('stock', uid(), { productId: pid, name: pr.name, qty: qn, note: val('a-note'), date: today() });
       closeSheet(); renderAll(); toast('Stock updated');
@@ -2203,14 +2268,15 @@
       if(v) put('prices', pid, Object.assign({}, store.docs.prices[pid] || {}, { sell: v })); else remove('prices', pid);
       renderAll();
     }
+    else if(t.id === 'lowStock2'){}
     else if(t.id === 'markup'){ saveSettings({ markup: Math.max(0, num(t.value)) }); renderAll(); }
     else if(t.id === 'maxCust'){ saveSettings({ maxCustDiscount: Math.max(0, Math.min(100, num(t.value))) }); toast('Saved'); }
     else if(t.id === 'lowStock'){ saveSettings({ lowStock: Math.max(0, Math.round(num(t.value))) }); renderAll(); }
   });
   document.addEventListener('input', function(e){
     var id = e.target.id;
-    if(id === 'q' || id === 'bq'){
-      if(id === 'q') shopQuery = e.target.value; else bizQuery = e.target.value;
+    if(id === 'q' || id === 'bq' || id === 'sq'){
+      if(id === 'q') shopQuery = e.target.value; else if(id === 'sq') stockQuery = e.target.value; else bizQuery = e.target.value;
       var pos = e.target.selectionStart;
       renderAll();
       var el = document.getElementById(id); if(el){ el.focus(); try{ el.setSelectionRange(pos, pos); }catch(err){} }
