@@ -159,6 +159,12 @@
   .slabs td:last-child{ text-align:right; font-weight:600; }
   .slabs tr.on td{ color:var(--accent); font-weight:700; }
   .slabs tr.on td:first-child::before{ content:'▸ '; }
+  details.kit{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 14px; margin-top:12px; }
+  details.kit summary{ font-weight:700; cursor:pointer; list-style:none; padding:4px 0; }
+  details.kit summary::-webkit-details-marker{ display:none; }
+  .kit-imgs{ display:flex; gap:8px; overflow-x:auto; margin-top:10px; padding-bottom:4px; }
+  .kit-img{ flex:none; width:130px; display:flex; flex-direction:column; gap:6px; }
+  .kit-img img{ width:130px; height:130px; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
   .thumbs{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
   .thumb{ position:relative; width:84px; height:84px; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
   .thumb img{ width:100%; height:100%; object-fit:cover; }
@@ -342,7 +348,7 @@
   // The app also reads threadtribe.co directly, so every toy on the store shows even
   // before Thread Tribe's Studio has republished this buyer's pack. Toys the pack
   // prices keep that price; the rest are "price on request".
-  var SHOP_URL = 'https://threadtribe.co', SHOP_TYPES = ['Flexi Toys', 'Fidget Clickers'], WEB_KEY = 'tt-buyer-web-toys-v1';
+  var SHOP_URL = 'https://threadtribe.co', SHOP_TYPES = ['Flexi Toys', 'Fidget Clickers'], WEB_KEY = 'tt-buyer-web-toys-v2';
   var WEB = { items: [], at: 0, loading: false };
   try{ var wc = JSON.parse(localStorage.getItem(WEB_KEY)); if(wc && Array.isArray(wc.items)){ WEB.items = wc.items; WEB.at = wc.at || 0; } }catch(e){}
   function cleanName(t){ return String(t || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\u200D]/gu, '').replace(/\s+/g, ' ').trim(); }
@@ -363,6 +369,8 @@
         var img = x.images && x.images[0] ? x.images[0].src : '';
         var prices = (x.variants || []).map(function(v){ return parseFloat(v.price) || 0; }).filter(function(v){ return v > 0; });
         return { handle: x.handle, name: cleanName(x.title), category: x.product_type, retail: prices.length ? Math.min.apply(null, prices) : 0, published: (x.published_at || x.created_at || '').slice(0, 10),
+          images: (x.images || []).slice(0, 6).map(function(im){ return im.src + (im.src.indexOf('?') === -1 ? '?' : '&') + 'width=800'; }),
+          desc: String(x.body_html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim().slice(0, 400),
           photo: img ? img + (img.indexOf('?') === -1 ? '?' : '&') + 'width=600' : '' };
       });
       if(items.length){ WEB.items = items; WEB.at = Date.now(); try{ localStorage.setItem(WEB_KEY, JSON.stringify({ items: items, at: WEB.at })); }catch(e){} }
@@ -379,11 +387,11 @@
     var out = base.map(function(p){
       var w = WEB.items.find(function(x){ return nameKey(x.name) === nameKey(p.name); });
       if(!w) return p;
-      return Object.assign({}, p, { photo: p.photo || w.photo, retail: p.retail || w.retail, category: p.category || w.category, published: w.published || '' });
+      return Object.assign({}, p, { photo: p.photo || w.photo, retail: p.retail || w.retail, category: p.category || w.category, published: w.published || '', images: w.images || [], desc: w.desc || '' });
     });
     WEB.items.forEach(function(w){
       if(ids['web:' + w.handle] || byName[nameKey(w.name)]) return;
-      out.push({ id: 'web:' + w.handle, name: w.name, category: w.category, kind: 'toy', weight: 0, hours: 0, color: '', size: '', material: '', photo: w.photo, base: 0, price: 0, retail: w.retail, onRequest: true, published: w.published || '' });
+      out.push({ id: 'web:' + w.handle, name: w.name, category: w.category, kind: 'toy', weight: 0, hours: 0, color: '', size: '', material: '', photo: w.photo, base: 0, price: 0, retail: w.retail, onRequest: true, published: w.published || '', images: w.images || [], desc: w.desc || '' });
     });
     catCache = { key: key, list: out };
     return out;
@@ -1072,11 +1080,70 @@
           var nextMin = rows[i + 1] ? rows[i + 1].min : null;
           return '<tr data-min="' + s.min + '" data-max="' + (nextMin ? nextMin - 1 : '') + '"><td>' + s.min + (nextMin ? '–' + (nextMin - 1) : '+') + ' pcs' + (s.pct ? ' · ' + s.pct + '% off' : '') + '</td><td>' + money(priceAt(p, s.pct)) + ' / pc</td></tr>';
         }).join('') + '</table></div>') +
+      kitHtml(p) +
       '<label>Colour (optional)</label><input id="pc" placeholder="' + esc(p.color || 'e.g. Pastel blue') + '" value="' + esc(inCart ? inCart.color || '' : '') + '">' +
       '<div class="btns"><button class="btn primary block" data-a="add" data-id="' + esc(p.id) + '">' + (inCart ? 'Update cart' : 'Add to cart') + '</button></div>');
     updateLine();
   }
   // Live as the quantity changes: discount, price per piece, total, saving, next slab.
+  // ======================= marketing kit =======================
+  // Photos and ready captions resellers can post as their own (WhatsApp status,
+  // Instagram, a message to a buyer), with their name, phone and selling price.
+  var KIT_STYLES = { status: 'WhatsApp status', insta: 'Instagram', buyer: 'Message to a buyer' };
+  var kit = { style: 'status', price: true };
+  function kitHtml(p){
+    var imgs = (p.images && p.images.length ? p.images : p.photo ? [p.photo] : []);
+    if(!imgs.length) return '';
+    return '<details class="kit"><summary>📣 Marketing kit — photos &amp; captions</summary>' +
+      '<div class="kit-imgs">' + imgs.map(function(u, i){ return '<div class="kit-img"><img loading="lazy" src="' + esc(u) + '" alt=""><button class="btn small" data-a="kit-save" data-i="' + i + '" data-id="' + esc(p.id) + '">Save</button></div>'; }).join('') + '</div>' +
+      '<div class="seg" style="margin:10px -16px 4px">' + Object.keys(KIT_STYLES).map(function(k){ return '<button type="button" data-kitstyle="' + k + '" class="' + (kit.style === k ? 'on' : '') + '">' + KIT_STYLES[k] + '</button>'; }).join('') + '</div>' +
+      '<label class="check" style="margin-top:6px"><input type="checkbox" id="kit-price"' + (kit.price ? ' checked' : '') + '> Include my selling price</label>' +
+      '<textarea id="kit-text" style="margin-top:8px;min-height:150px">' + esc(caption(p)) + '</textarea>' +
+      '<div class="btns"><button class="btn primary" data-a="kit-share" data-id="' + esc(p.id) + '">Share photo + caption</button><button class="btn" data-a="kit-copy">Copy caption</button></div></details>';
+  }
+  function hook(p){
+    var d = String(p.desc || '').trim();
+    if(!d) return '';
+    var m = d.match(/^(.{20,170}?[.!?])(\s|$)/);
+    return m ? m[1] : d.slice(0, 140);
+  }
+  function caption(p){
+    var s = settings(), price = kit.price ? sellPrice(p) : 0, h = hook(p), biz = s.bizName || '', ph = s.phone || '';
+    var tag = function(t){ return '#' + String(t || '').replace(/[^A-Za-z0-9]/g, ''); };
+    if(kit.style === 'insta'){
+      return [p.name + ' 🧸', '', h, '', 'Available for wholesale & bulk orders.' + (price ? ' ₹' + price + ' per piece.' : ''), ph ? 'DM us or call ' + ph + '.' : 'DM us to order.', '',
+        ['#toys', '#fidgettoys', '#flexitoys', '#3dprinted', '#wholesaletoys', s.city ? tag(s.city) : '', biz ? tag(biz) : ''].filter(Boolean).join(' ')].filter(function(x, i, a){ return x !== '' || (a[i - 1] !== ''); }).join('\n');
+    }
+    if(kit.style === 'buyer'){
+      return 'Hi! We have ' + p.name + ' in stock.' + (h ? ' ' + h : '') + (price ? ' Rate: ₹' + price + ' per piece (ex-GST).' : '') + ' Shall I book some for you?' + (biz ? '\n— ' + biz : '');
+    }
+    return ['✨ ' + p.name + ' ✨', h, price ? '₹' + price + ' per piece · bulk orders welcome' : 'Bulk orders welcome', (ph ? '📞 ' + ph : '') + (biz ? (ph ? ' · ' : '') + biz : '')].filter(Boolean).join('\n');
+  }
+  function kitImage(p, i){ var imgs = (p.images && p.images.length ? p.images : [p.photo]); return imgs[i] || imgs[0]; }
+  async function kitFile(p, i){
+    var r = await fetch(kitImage(p, i)), b = await r.blob();
+    var ext = /png/.test(b.type) ? 'png' : /webp/.test(b.type) ? 'webp' : 'jpg';
+    return new File([b], (p.name.replace(/[^\w\- ]/g, '').trim() || 'toy') + (i ? ' ' + (i + 1) : '') + '.' + ext, { type: b.type || 'image/jpeg' });
+  }
+  async function kitSave(p, i){
+    try{
+      var f = await kitFile(p, i), a = document.createElement('a');
+      a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast('Saved ' + f.name);
+    }catch(e){ window.open(kitImage(p, i), '_blank'); }
+  }
+  async function kitShare(p){
+    var text = val('kit-text');
+    try{
+      var f = await kitFile(p, 0);
+      if(navigator.canShare && navigator.canShare({ files: [f] })){ await navigator.share({ files: [f], text: text }); return; }
+    }catch(e){ if(e && e.name === 'AbortError') return; }
+    copyText(text, 'Caption copied — paste it with the photo');
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  }
+  function copyText(t, msg){ (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function(){ toast(msg || 'Copied'); }).catch(function(){ prompt('Copy this:', t); }); }
+
   function updateLine(){
     var el = document.getElementById('pline'), q = document.getElementById('pq'), b = document.querySelector('#sheetBody [data-a="add"]');
     if(!el || !q || !b) return;
@@ -1754,6 +1821,14 @@
     if(go){ tab = go.getAttribute('data-go'); renderAll(); window.scrollTo(0, 0); return; }
     var nb = e.target.closest('#nav [data-tab]');
     if(nb){ tab = nb.getAttribute('data-tab'); bizQuery = ''; renderAll(); window.scrollTo(0, 0); return; }
+    var ksb = e.target.closest('[data-kitstyle]');
+    if(ksb){
+      kit.style = ksb.getAttribute('data-kitstyle');
+      document.querySelectorAll('[data-kitstyle]').forEach(function(b){ b.classList.toggle('on', b === ksb); });
+      var kpid = (document.getElementById('pline') || {}).getAttribute && document.getElementById('pline').getAttribute('data-id'), kpp = kpid && product(kpid);
+      if(kpp) document.getElementById('kit-text').value = caption(kpp);
+      return;
+    }
     var sg = e.target.closest('[data-seg]');
     if(sg){ shopSeg = sg.getAttribute('data-seg'); renderAll(); return; }
     var os = e.target.closest('[data-oseg]');
@@ -1800,6 +1875,9 @@
     else if(act === 'order') orderSheet(id);
     else if(act === 'reorder') reorder(id);
     else if(act === 'claim') claimSheet(id);
+    else if(act === 'kit-save'){ var kp = product(id); if(kp) kitSave(kp, +a.getAttribute('data-i')); }
+    else if(act === 'kit-share'){ var ks = product(id); if(ks) kitShare(ks); }
+    else if(act === 'kit-copy') copyText(val('kit-text'), 'Caption copied');
     else if(act === 'open-seg'){ shopSeg = a.getAttribute('data-v'); tab = 'shop'; renderAll(); window.scrollTo(0, 0); }
     else if(act === 'remind') remind(a.getAttribute('data-k'));
     else if(act === 'export') exportSheet();
@@ -1864,6 +1942,7 @@
   document.addEventListener('change', function(e){
     var t = e.target;
     if(t.id === 'sortSel'){ store.filt.sort = t.value; save(); renderAll(); }
+    else if(t.id === 'kit-price'){ kit.price = t.checked; var kq = product(document.getElementById('pline').getAttribute('data-id')); if(kq) document.getElementById('kit-text').value = caption(kq); }
     else if(t.id === 'cl-photos'){ addClaimPhotos(t.files || []); t.value = ''; }
     else if(t.id === 'sh-which'){ var pk = document.getElementById('sh-pick'); if(pk) pk.classList.toggle('hidden', t.value !== 'pick'); }
     else if(t.id === 'sh-prices'){ var cw = document.getElementById('sh-custwrap'); if(cw) cw.classList.toggle('hidden', t.value !== 'cust'); }
