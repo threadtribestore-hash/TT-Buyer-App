@@ -470,7 +470,9 @@
     (prev.orders || []).forEach(function(o){ before[o.id] = o; });
     (next.orders || []).forEach(function(o){
       var b = before[o.id];
-      if(b && b.status !== o.status) msgs.push((o.displayId || 'Order') + ' is now ' + (STATUS[o.status] || o.status).toLowerCase());
+      if(b && b.status !== o.status) msgs.push((o.displayId || 'Order') + (o.status === 'shipped' ? ' has been dispatched' + (o.courier ? ' via ' + o.courier : '') : ' is now ' + (STATUS[o.status] || o.status).toLowerCase()));
+      else if(b && o.trackingNo && b.trackingNo !== o.trackingNo) msgs.push((o.displayId || 'Order') + ' tracking: ' + (o.courier ? o.courier + ' ' : '') + o.trackingNo);
+      else if(b && o.dispatchBy && b.dispatchBy !== o.dispatchBy) msgs.push((o.displayId || 'Order') + ' ships by ' + fmtDate(o.dispatchBy));
     });
     if(msgs.length) toast(msgs.slice(0, 2).join(' · '));
   }
@@ -804,11 +806,25 @@
     return '<div class="item" style="cursor:default"><div class="body"><div class="t">' + esc(title) + '</div><div class="s">' + fmtDate(q.created_at) + (q.reply ? ' · ' + esc(q.reply) : '') + '</div></div>' + chip +
       (q.status === 'open' ? '<button class="btn small" data-a="cancel-req" data-id="' + q.id + '">Cancel</button>' : '') + '</div>';
   }
+  // Courier tracking pages; anything else falls back to a web search for the AWB.
+  function trackUrl(o){
+    var no = encodeURIComponent(o.trackingNo || ''), c = (o.courier || '').toLowerCase();
+    if(/delhivery/.test(c)) return 'https://www.delhivery.com/track/package/' + no;
+    if(/shiprocket/.test(c)) return 'https://shiprocket.co/tracking/' + no;
+    if(/blue ?dart/.test(c)) return 'https://www.bluedart.com/web/guest/trackdartresult?trackFor=0&trackNo=' + no;
+    return 'https://www.google.com/search?q=' + encodeURIComponent((o.courier || 'courier') + ' tracking ' + (o.trackingNo || ''));
+  }
+  function shipLine(o){
+    if(o.status === 'shipped') return 'Dispatched ' + (o.shippedDate ? fmtDate(o.shippedDate) : '') + (o.courier ? ' · ' + o.courier : '');
+    if(o.dispatchBy && ['booked', 'in_production', 'production_done'].indexOf(o.status) !== -1) return 'Ships by ' + fmtDate(o.dispatchBy);
+    return '';
+  }
   function orderItem(o){
     var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
     var chip = o.status === 'delivered' ? 'ok' : o.status === 'cancelled' ? 'bad' : o.status === 'quoted' ? '' : 'new';
     return '<button class="item" data-a="order" data-id="' + esc(o.id) + '"><div class="body"><div class="t">' + esc(o.displayId) + ' · ' + esc(o.name || 'Supply order') + '</div>' +
-      '<div class="s">' + (o.status === 'in_production' ? made + ' of ' + qty + ' made' : qty + ' pcs') + ' · ' + money(o.total) + (o.due ? ' · ' + money(o.due) + ' due' : '') + '</div></div>' +
+      '<div class="s">' + (o.status === 'in_production' ? made + ' of ' + qty + ' made' : qty + ' pcs') + ' · ' + money(o.total) + (o.due ? ' · ' + money(o.due) + ' due' : '') + '</div>' +
+      (shipLine(o) ? '<div class="s" style="color:var(--accent);font-weight:600">' + esc(shipLine(o)) + '</div>' : '') + '</div>' +
       '<span class="chip ' + chip + '">' + esc(STATUS[o.status] || o.status) + '</span><span class="chev">›</span></button>';
   }
 
@@ -1130,6 +1146,13 @@
         return '<div class="row"><div><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">' + l.qty + ' × ' + money2(l.unitPrice) + (l.color ? ' · ' + esc(l.color) : '') +
           (o.status === 'in_production' ? ' · ' + l.made + ' made' : '') + '</div></div><span class="r">' + money(l.qty * l.unitPrice) + '</span></div>';
       }).join('') + '</div>' +
+      (o.status === 'shipped' || o.trackingNo || o.dispatchBy ? '<div class="h2">Delivery</div><div class="card">' +
+        (o.dispatchBy && o.status !== 'shipped' && o.status !== 'delivered' ? '<div class="row"><span class="muted">Expected dispatch</span><span class="r">' + fmtDate(o.dispatchBy) + '</span></div>' : '') +
+        (o.shippedDate ? '<div class="row"><span class="muted">Dispatched</span><span class="r">' + fmtDate(o.shippedDate) + '</span></div>' : '') +
+        (o.courier ? '<div class="row"><span class="muted">Courier</span><span class="r">' + esc(o.courier) + '</span></div>' : '') +
+        (o.trackingNo ? '<div class="row"><span class="muted">Tracking / AWB</span><span class="r">' + esc(o.trackingNo) + '</span></div>' +
+          '<div class="btns"><a class="btn primary small" href="' + esc(trackUrl(o)) + '" target="_blank" rel="noopener">Track shipment</a><button class="btn small" data-a="copy-awb" data-v="' + esc(o.trackingNo) + '">Copy AWB</button></div>' : '') +
+        '</div>' : '') +
       '<div class="card"><div class="row"><span class="muted">Ordered</span><span class="r">' + (fmtDate(o.orderedDate) || '—') + '</span></div>' +
       (o.dueDate ? '<div class="row"><span class="muted">Due</span><span class="r">' + fmtDate(o.dueDate) + '</span></div>' : '') +
       (o.deliveryDate ? '<div class="row"><span class="muted">Delivered</span><span class="r">' + fmtDate(o.deliveryDate) + '</span></div>' : '') +
@@ -1631,6 +1654,7 @@
     else if(act === 'order') orderSheet(id);
     else if(act === 'reorder') reorder(id);
     else if(act === 'claim') claimSheet(id);
+    else if(act === 'copy-awb'){ var awb = a.getAttribute('data-v'); (navigator.clipboard ? navigator.clipboard.writeText(awb) : Promise.reject()).then(function(){ toast('Copied ' + awb); }).catch(function(){ prompt('AWB', awb); }); }
     else if(act === 'send-claim') sendClaim(id);
     else if(act === 'del-photo'){ claimPhotos.splice(+a.getAttribute('data-i'), 1); addClaimPhotos([]); }
     else if(act === 'tt-invoice'){ closeSheet(); showTTInvoice(id); }
