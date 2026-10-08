@@ -112,6 +112,10 @@
   .home .att-t{ font-size:14px; }
   .kpi-foot span:first-child{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-right:8px; }
   .scard .p{ white-space:nowrap; }
+  .quote{ display:flex; gap:10px; align-items:center; width:100%; flex:none; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:8px 12px; text-align:left; cursor:pointer; font:inherit; color:var(--text); }
+  .q-ic{ flex:none; font-size:16px; }
+  .q-t{ font-size:13.5px; font-style:italic; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  body.short .q-t{ -webkit-line-clamp:1; }
   body.short .kpi-foot{ display:none; }
   body.short .home .kpi .hv{ font-size:21px; }
   body.short .home .qa .qi{ width:42px; height:42px; }
@@ -911,6 +915,7 @@
     var p = pack(), sv = savingsStats(), ss = salesStats(), invoicing = ss.count > 0, biz = !cloud.bizMissing;
     var html = '<div class="home">';
     // how am I doing
+    html += '<button class="quote" data-a="next-quote" title="Tap for another"><span class="q-ic">💡</span><span class="q-t">' + esc(quoteOfDay()) + '</span></button>';
     html += '<button class="kpi" data-a="insights"><div class="kpi-row">' +
       '<div class="kpi-col"><div class="hk">You earned</div><div class="hv">' + (invoicing ? money(ss.year) : '—') + '</div><div class="hs">' + (invoicing ? money(ss.month) + ' this month' : 'Start billing in Business') + '</div></div>' +
       '<div class="kpi-div"></div>' +
@@ -948,6 +953,47 @@
     return html + '</div>';
   }
   var homeStrip = 'trending';
+  // A line for the day, written for people who buy, stock and sell. Rotates daily; tap for the next.
+  var QUOTES = [
+    'Every order you place today is a shelf you fill tomorrow.',
+    'Small orders, sent often, build big trust.',
+    'Your best customer is the one you call back first.',
+    'Stock that moves is money that grows.',
+    'Sell what you believe in, and say it like you mean it.',
+    'A follow-up today is a sale this week.',
+    'Margins are made at the buying table and kept at the selling one.',
+    'Show one more customer your catalogue than you did yesterday.',
+    'Fresh designs open doors; good service keeps them open.',
+    'Collect on time, and your business breathes easy.',
+    'The market rewards those who turn up every day.',
+    'One happy shopkeeper tells three more.',
+    'Know your top three toys, and never run out of them.',
+    'Price with confidence, deliver with care.',
+    'A clean invoice is a quiet promise kept.',
+    'Today’s sample is next month’s bulk order.',
+    'Busy shelves come from steady restocking, not big guesses.',
+    'Listen to what buyers ask for; that is your next order.',
+    'Consistency beats cleverness in trade.',
+    'Every “not today” is practice for a “yes”.',
+    'Small profit, many times over, is still big profit.',
+    'Your phone is your shop window. Keep it lit.',
+    'Reliable beats cheap when the buyer comes back.',
+    'Count your stock, and your stock will count for you.',
+    'Good partners make good seasons.',
+    'Begin the day with one sale in mind, and chase it.',
+    'Trust is the cheapest marketing you will ever buy.',
+    'Season comes once a year; preparation comes every day.',
+    'A buyer remembers how quickly you replied.',
+    'Grow one customer at a time, and none of them get lost.',
+    'Drop by drop, the pot fills. (Proverb)',
+    'Slow and steady wins the race. (Proverb)',
+    'Where there is a will, there is a way. (Proverb)',
+    'Well begun is half done. (Proverb)'
+  ];
+  function quoteOfDay(){
+    var day = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+    return QUOTES[((day + (store.quoteShift || 0)) % QUOTES.length + QUOTES.length) % QUOTES.length];
+  }
   function homeStrips(){
     var p = pack(), out = [];
     var tr = (p.trending || []).map(function(n){ return catalogue().find(function(x){ return nameKey(x.name) === nameKey(n); }); }).filter(Boolean);
@@ -2054,6 +2100,7 @@
     else if(act === 'reorder') reorder(id);
     else if(act === 'claim') claimSheet(id);
     else if(act === 'insights') insightsSheet();
+    else if(act === 'next-quote'){ store.quoteShift = (store.quoteShift || 0) + 1; save(); var qt = a.querySelector('.q-t'); if(qt) qt.textContent = quoteOfDay(); }
     else if(act === 'att-more') attMoreSheet();
     else if(act === 'home-collect'){ tab = 'business'; bizSeg = 'invoices'; renderAll(); window.scrollTo(0, 0); }
     else if(act === 'home-go'){
