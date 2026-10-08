@@ -148,6 +148,22 @@
   .slabs td{ padding:7px 0; border-bottom:1px solid var(--line); }
   .slabs td:last-child{ text-align:right; font-weight:600; }
   .slabs tr.on td{ color:var(--accent); font-weight:700; }
+  .slabs tr.on td:first-child::before{ content:'▸ '; }
+  .qchips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .qchip{ border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:7px 12px; font-weight:600; font-size:14px; cursor:pointer; }
+  .qchip.on{ background:var(--text); color:var(--bg); border-color:var(--text); }
+  .pline{ background:var(--panel); border:1px solid var(--accent); border-radius:14px; padding:12px 14px; margin:12px 0; }
+  .pl-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .pl-price{ font-size:22px; font-weight:700; letter-spacing:-0.3px; }
+  .pl-price small{ font-size:13px; color:var(--dim); font-weight:500; }
+  .pl-price s{ font-size:14px; color:var(--dim); font-weight:500; }
+  .pl-badge{ background:var(--green-soft); color:var(--green); font-weight:700; font-size:13px; padding:4px 10px; border-radius:20px; white-space:nowrap; }
+  .pl-badge.none{ background:var(--panel2); color:var(--dim); }
+  .pl-sub{ font-size:14px; margin-top:4px; }
+  .pl-save{ color:var(--green); font-weight:600; }
+  .pl-warn{ color:var(--red); font-size:13.5px; font-weight:600; margin-top:4px; }
+  .nudge{ display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--accent-soft); border-radius:10px; padding:8px 10px; margin-top:8px; font-size:13.5px; }
+  .nudge .btn{ flex:none; }
   .lines .ln{ display:grid; grid-template-columns:1fr 84px 34px; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
   .lines .ln input{ padding:9px 8px; text-align:center; font-size:15px; }
   .lines .ln .x{ width:34px; height:34px; }
@@ -861,13 +877,17 @@
     var r = document.getElementById('fret'); f.retailOnly = !!(r && r.checked);
     save(); closeSheet(); renderAll();
   }
+  function slabRowsFor(){
+    var t = T();
+    return [{ min: t.minOrder, pct: Math.min(t.maxDiscount, t.tierPct) }].concat(t.slabs.map(function(s){ return { min: s.min, pct: Math.min(t.maxDiscount, t.tierPct + s.pct) }; }));
+  }
   function productSheet(id){
     var p = product(id); if(!p) return;
     var t = T(), inCart = store.cart.find(function(l){ return l.productId === id; });
     var qty = inCart ? inCart.qty : Math.max(t.minPerProduct, 25);
     var cartQty = cartTotals().qty - (inCart ? inCart.qty : 0);
-    var slabRows = [{ min: t.minOrder, pct: Math.min(t.maxDiscount, t.tierPct) }].concat(t.slabs.map(function(s){ return { min: s.min, pct: Math.min(t.maxDiscount, t.tierPct + s.pct) }; }));
-    var curTotal = cartQty + qty, cur = orderPct(curTotal);
+    var rows = slabRowsFor();
+    var chips = [t.minPerProduct, 25, 50, 100, 250, 500].filter(function(v, i, a){ return v >= t.minPerProduct && a.indexOf(v) === i; });
     openSheet('<div class="sheet-h"><div class="t">' + esc(p.name) + '</div><button class="x" data-a="close">✕</button></div>' +
       '<div class="hero">' + (p.photo ? '<img alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
       '<div class="card">' +
@@ -876,27 +896,46 @@
       (p.size ? '<div class="row"><span class="muted">Size</span><span class="r">' + esc(p.size) + '</span></div>' : '') +
       (p.retail ? '<div class="row"><span class="muted">Suggested retail</span><span class="r">' + money(p.retail) + (margin(p) ? ' <span class="muted">· ' + margin(p).toFixed(1) + '× your price</span>' : '') + '</span></div>' : '') +
       '</div>' +
-      (onRequest(p) ? '<div class="note info"><b>Price on request.</b> Thread Tribe confirms this toy’s price when they confirm your order. Its pieces still count toward your order-size discount.</div>'
-      : '<div class="card"><div class="muted" style="margin-bottom:4px">Your price per piece — counts every toy in the order together</div><table class="slabs">' +
-      slabRows.map(function(s, i){
-        var nextMin = slabRows[i + 1] ? slabRows[i + 1].min : null, on = curTotal >= s.min && (nextMin === null || curTotal < nextMin);
-        return '<tr class="' + (on ? 'on' : '') + '"><td>' + s.min + (nextMin ? '–' + (nextMin - 1) : '+') + ' pcs' + (s.pct ? ' · ' + s.pct + '% off' : '') + '</td><td>' + money(priceAt(p, s.pct)) + '</td></tr>';
-      }).join('') + '</table></div>') +
       '<label>Quantity (min ' + t.minPerProduct + ')</label><div class="qty"><button data-a="qty-" type="button">−</button><input id="pq" type="number" inputmode="numeric" min="' + t.minPerProduct + '" step="1" value="' + qty + '"><button data-a="qty+" type="button">+</button></div>' +
+      '<div class="qchips">' + chips.map(function(v){ return '<button type="button" class="qchip" data-a="set-qty" data-v="' + v + '">' + v + '</button>'; }).join('') + '</div>' +
+      '<div id="pline" class="pline" data-cartqty="' + cartQty + '" data-id="' + esc(p.id) + '"></div>' +
+      (onRequest(p) ? '' : '<div class="card"><div class="muted" style="margin-bottom:4px">Discount by order size — every toy in the order counts' + (cartQty ? ' (' + cartQty + ' pcs already in your cart)' : '') + '</div><table class="slabs">' +
+        rows.map(function(s, i){
+          var nextMin = rows[i + 1] ? rows[i + 1].min : null;
+          return '<tr data-min="' + s.min + '" data-max="' + (nextMin ? nextMin - 1 : '') + '"><td>' + s.min + (nextMin ? '–' + (nextMin - 1) : '+') + ' pcs' + (s.pct ? ' · ' + s.pct + '% off' : '') + '</td><td>' + money(priceAt(p, s.pct)) + ' / pc</td></tr>';
+        }).join('') + '</table></div>') +
       '<label>Colour (optional)</label><input id="pc" placeholder="' + esc(p.color || 'e.g. Pastel blue') + '" value="' + esc(inCart ? inCart.color || '' : '') + '">' +
-      '<div class="hint" id="pline" data-cartqty="' + cartQty + '"></div>' +
       '<div class="btns"><button class="btn primary block" data-a="add" data-id="' + esc(p.id) + '">' + (inCart ? 'Update cart' : 'Add to cart') + '</button></div>');
     updateLine();
-    void cur;
   }
+  // Live as the quantity changes: discount, price per piece, total, saving, next slab.
   function updateLine(){
     var el = document.getElementById('pline'), q = document.getElementById('pq'), b = document.querySelector('#sheetBody [data-a="add"]');
     if(!el || !q || !b) return;
-    var p = product(b.getAttribute('data-id')), n = Math.round(num(q.value)), total = num(el.getAttribute('data-cartqty')) + n, pct = orderPct(total);
-    if(!p) return;
-    if(onRequest(p)){ el.innerHTML = n + ' pcs · price confirmed by Thread Tribe' + (n < T().minPerProduct ? ' — <b>minimum is ' + T().minPerProduct + '</b>' : ''); return; }
-    el.innerHTML = money(priceAt(p, pct) * n) + ' for ' + n + ' pcs at ' + money(priceAt(p, pct)) + ' each' + (pct ? ' (' + pct + '% off on a ' + total + '-piece order)' : '') + ', ex-GST' +
-      (n < T().minPerProduct ? ' — <b>minimum is ' + T().minPerProduct + '</b>' : '');
+    var p = product(el.getAttribute('data-id')); if(!p) return;
+    var t = T(), n = Math.max(0, Math.round(num(q.value))), cartQty = num(el.getAttribute('data-cartqty')), total = cartQty + n, pct = orderPct(total);
+    var low = n < t.minPerProduct, nx = nextSlab(total);
+    document.querySelectorAll('#sheetBody .qchip').forEach(function(c){ c.classList.toggle('on', +c.getAttribute('data-v') === n); });
+    document.querySelectorAll('#sheetBody .slabs tr').forEach(function(r){
+      var mn = +r.getAttribute('data-min'), mx = r.getAttribute('data-max');
+      r.classList.toggle('on', total >= mn && (mx === '' || total <= +mx));
+    });
+    var nudge = nx ? '<div class="nudge"><span>Add <b>' + nx.need + ' more pcs</b>' + (cartQty ? ' (any toys)' : '') + ' to get <b>' + nx.pct + '% off</b></span>' +
+      '<button class="btn small" data-a="set-qty" data-v="' + (n + nx.need) + '">Make it ' + (n + nx.need) + '</button></div>' : '';
+    if(onRequest(p)){
+      el.innerHTML = '<div class="pl-top"><span class="pl-price">Price on request</span>' + (pct ? '<span class="pl-badge">' + pct + '% off priced toys</span>' : '') + '</div>' +
+        '<div class="pl-sub">' + n + ' pcs · Thread Tribe confirms the price. These pieces count toward your order discount.</div>' +
+        (low ? '<div class="pl-warn">Minimum is ' + t.minPerProduct + ' pieces</div>' : '') + nudge;
+      b.textContent = (b.textContent.indexOf('Update') === 0 ? 'Update cart' : 'Add to cart') + ' · ' + n + ' pcs';
+      return;
+    }
+    var each = priceAt(p, pct), sum = each * n, saved = (p.base - each) * n;
+    el.innerHTML = '<div class="pl-top"><span class="pl-price">' + money(each) + ' <small>/ pc</small>' + (each < p.base ? ' <s>' + money(p.base) + '</s>' : '') + '</span>' +
+      (pct ? '<span class="pl-badge">' + pct + '% off</span>' : '<span class="pl-badge none">No discount yet</span>') + '</div>' +
+      '<div class="pl-sub">' + n + ' pcs = <b>' + money(sum) + '</b> ex-GST' + (saved > 0 ? ' · <span class="pl-save">you save ' + money(saved) + '</span>' : '') + '</div>' +
+      (cartQty ? '<div class="pl-sub">Order total ' + total + ' pcs with your cart</div>' : '') +
+      (low ? '<div class="pl-warn">Minimum is ' + t.minPerProduct + ' pieces</div>' : '') + nudge;
+    b.textContent = (b.textContent.indexOf('Update') === 0 ? 'Update cart' : 'Add to cart') + ' · ' + money(sum);
   }
   function addToCart(id, qty, color){
     var p = product(id); if(!p) return;
@@ -1416,6 +1455,7 @@
       if(k === 'price'){ f.min = ''; f.max = ''; } else if(k === 'ordered') f.ordered = false; else if(k === 'retail') f.retailOnly = false;
       save(); renderAll();
     }
+    else if(act === 'set-qty'){ var qi = document.getElementById('pq'); if(qi){ qi.value = a.getAttribute('data-v'); updateLine(); } }
     else if(act === 'qty-' || act === 'qty+'){ var q = document.getElementById('pq'); q.value = Math.max(T().minPerProduct, Math.round(num(q.value)) + (act === 'qty+' ? 5 : -5)); updateLine(); }
     else if(act === 'add'){ if(addToCart(id, Math.round(num(val('pq'))), val('pc').slice(0, 60))){ closeSheet(); renderAll(); } }
     else if(act === 'quick-add'){ var ex = store.cart.find(function(x){ return x.productId === id; }); addToCart(id, ex ? ex.qty : Math.max(T().minPerProduct, 25)); renderAll(); }
