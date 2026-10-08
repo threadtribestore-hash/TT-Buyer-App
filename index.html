@@ -149,6 +149,10 @@
   .slabs td:last-child{ text-align:right; font-weight:600; }
   .slabs tr.on td{ color:var(--accent); font-weight:700; }
   .slabs tr.on td:first-child::before{ content:'▸ '; }
+  .thumbs{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .thumb{ position:relative; width:84px; height:84px; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+  .thumb img{ width:100%; height:100%; object-fit:cover; }
+  .thumb .x{ position:absolute; top:4px; right:4px; width:26px; height:26px; font-size:12px; }
   .qchips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   .qchip{ border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:7px 12px; font-weight:600; font-size:14px; cursor:pointer; }
   .qchip.on{ background:var(--text); color:var(--bg); border-color:var(--text); }
@@ -794,7 +798,8 @@
   }
   function requestItem(q){
     var lines = (q.payload && q.payload.lines) || [];
-    var title = q.kind === 'order' ? 'Supply request · ' + lines.reduce(function(s, l){ return s + (l.qty || 0); }, 0) + ' pcs' : q.kind === 'profile' ? 'Details change' : 'Message';
+    var pcs = lines.reduce(function(s, l){ return s + (l.qty || 0); }, 0);
+    var title = q.kind === 'order' ? 'Supply request · ' + pcs + ' pcs' : q.kind === 'claim' ? 'Problem with ' + ((q.payload && q.payload.displayId) || 'an order') + ' · ' + pcs + ' pcs' : q.kind === 'profile' ? 'Details change' : 'Message';
     var chip = q.status === 'open' ? '<span class="chip soon">Waiting</span>' : q.status === 'accepted' || q.status === 'done' ? '<span class="chip ok">' + (q.status === 'accepted' ? 'Confirmed' : 'Done') + '</span>' : q.status === 'declined' ? '<span class="chip bad">Declined</span>' : '<span class="chip">' + esc(q.status) + '</span>';
     return '<div class="item" style="cursor:default"><div class="body"><div class="t">' + esc(title) + '</div><div class="s">' + fmtDate(q.created_at) + (q.reply ? ' · ' + esc(q.reply) : '') + '</div></div>' + chip +
       (q.status === 'open' ? '<button class="btn small" data-a="cancel-req" data-id="' + q.id + '">Cancel</button>' : '') + '</div>';
@@ -1131,8 +1136,67 @@
       '<div class="row"><span class="muted">Total incl. GST</span><span class="r">' + money2(o.total) + '</span></div>' +
       '<div class="row"><span class="muted">Payment</span><span class="r">' + esc(PAY[o.paymentStatus] || o.paymentStatus) + (o.due ? ' · ' + money2(o.due) + ' due' : '') + '</span></div></div>' +
       '<div class="btns">' + (o.invoiceNumber ? '<button class="btn" data-a="tt-invoice" data-id="' + esc(o.id) + '">View invoice ' + esc(o.invoiceNumber) + '</button>' : '') +
-      (canReorder ? '<button class="btn primary" data-a="reorder" data-id="' + esc(o.id) + '">Reorder</button>' : '') + '</div>');
+      (canReorder ? '<button class="btn primary" data-a="reorder" data-id="' + esc(o.id) + '">Reorder</button>' : '') +
+      (['production_done', 'shipped', 'delivered'].indexOf(o.status) !== -1 ? '<button class="btn" data-a="claim" data-id="' + esc(o.id) + '">Report a problem</button>' : '') + '</div>');
   }
+  // ======================= damage / replacement claims =======================
+  var ISSUES = { broken: 'Broken', missing: 'Missing pieces', colour: 'Wrong colour', defect: 'Print defect', other: 'Other' };
+  var claimPhotos = [];
+  function claimSheet(orderId){
+    var o = pack().orders.find(function(x){ return x.id === orderId; }); if(!o) return;
+    claimPhotos = [];
+    openSheet('<div class="sheet-h"><div><div class="muted">' + esc(o.displayId) + '</div><div class="t">Report a problem</div></div><button class="x" data-a="close">✕</button></div>' +
+      '<p class="muted">Tell Thread Tribe which pieces had a problem. Photos help them sort it out faster.</p>' +
+      '<div class="card">' + o.lines.map(function(l, i){
+        return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">' + l.qty + ' pcs in this order</div></div>' +
+          '<input type="number" min="0" max="' + l.qty + '" data-claim="' + i + '" placeholder="0" style="width:80px;padding:8px;text-align:center"></div>';
+      }).join('') + '</div>' +
+      '<label>What went wrong</label><select id="cl-issue">' + Object.keys(ISSUES).map(function(k){ return '<option value="' + k + '">' + ISSUES[k] + '</option>'; }).join('') + '</select>' +
+      '<label>Photos (up to 3)</label><input id="cl-photos" type="file" accept="image/*" multiple>' +
+      '<div id="cl-thumbs" class="thumbs"></div>' +
+      '<label>Details (optional)</label><textarea id="cl-notes" maxlength="1000" placeholder="e.g. 8 legs snapped off in transit, box was crushed"></textarea>' +
+      '<label>What would you like?</label><select id="cl-want"><option value="replace">Replacement pieces</option><option value="credit">Credit on my next order</option></select>' +
+      '<div class="btns"><button class="btn primary block" data-a="send-claim" data-id="' + esc(o.id) + '">Send to Thread Tribe</button></div>');
+  }
+  // Phone photos are several MB; shrink to ~1000 px JPEG so a claim stays small.
+  function shrinkPhoto(file){
+    return new Promise(function(resolve){
+      var fr = new FileReader();
+      fr.onload = function(){
+        var img = new Image();
+        img.onload = function(){
+          var sc = Math.min(1, 1000 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+          cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          resolve(cv.toDataURL('image/jpeg', 0.6));
+        };
+        img.onerror = function(){ resolve(''); };
+        img.src = fr.result;
+      };
+      fr.onerror = function(){ resolve(''); };
+      fr.readAsDataURL(file);
+    });
+  }
+  async function addClaimPhotos(files){
+    for(var i = 0; i < files.length && claimPhotos.length < 3; i++){ var d = await shrinkPhoto(files[i]); if(d) claimPhotos.push(d); }
+    var t = document.getElementById('cl-thumbs');
+    if(t) t.innerHTML = claimPhotos.map(function(d, i){ return '<div class="thumb"><img src="' + d + '" alt=""><button class="x" data-a="del-photo" data-i="' + i + '">✕</button></div>'; }).join('');
+    if(files.length + claimPhotos.length > 3) toast('Up to 3 photos');
+  }
+  async function sendClaim(orderId){
+    var o = pack().orders.find(function(x){ return x.id === orderId; }); if(!o) return;
+    var lines = [];
+    document.querySelectorAll('[data-claim]').forEach(function(el){
+      var l = o.lines[+el.getAttribute('data-claim')], q = Math.max(0, Math.min(l.qty, Math.round(num(el.value))));
+      if(q) lines.push({ name: l.name, catalogId: l.catalogId || '', qty: q, unitPrice: l.unitPrice });
+    });
+    if(!lines.length){ toast('Enter how many pieces had a problem'); return; }
+    var btn = document.querySelector('[data-a="send-claim"]'); if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+    var ok = await submitRequest('claim', { orderId: o.id, displayId: o.displayId, issue: val('cl-issue'), want: val('cl-want'), notes: val('cl-notes'), lines: lines, photos: claimPhotos.slice(0, 3) });
+    if(ok){ claimPhotos = []; closeSheet(); orderSeg = 'requests'; tab = 'orders'; renderAll(); toast('Sent — Thread Tribe will reply here'); }
+    else if(btn){ btn.disabled = false; btn.textContent = 'Send to Thread Tribe'; }
+  }
+
   function reorder(id){
     var o = pack().orders.find(function(x){ return x.id === id; }); if(!o) return;
     var added = 0, missing = 0, t = T();
@@ -1566,6 +1630,9 @@
     // orders
     else if(act === 'order') orderSheet(id);
     else if(act === 'reorder') reorder(id);
+    else if(act === 'claim') claimSheet(id);
+    else if(act === 'send-claim') sendClaim(id);
+    else if(act === 'del-photo'){ claimPhotos.splice(+a.getAttribute('data-i'), 1); addClaimPhotos([]); }
     else if(act === 'tt-invoice'){ closeSheet(); showTTInvoice(id); }
     else if(act === 'print') window.print();
     else if(act === 'close-inv') document.getElementById('inv').classList.add('hidden');
@@ -1622,6 +1689,7 @@
   document.addEventListener('change', function(e){
     var t = e.target;
     if(t.id === 'sortSel'){ store.filt.sort = t.value; save(); renderAll(); }
+    else if(t.id === 'cl-photos'){ addClaimPhotos(t.files || []); t.value = ''; }
     else if(t.id === 'sh-which'){ var pk = document.getElementById('sh-pick'); if(pk) pk.classList.toggle('hidden', t.value !== 'pick'); }
     else if(t.id === 'sh-prices'){ var cw = document.getElementById('sh-custwrap'); if(cw) cw.classList.toggle('hidden', t.value !== 'cust'); }
     else if(t.id === 'd-cust'){
