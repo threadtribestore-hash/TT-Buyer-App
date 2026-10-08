@@ -176,6 +176,14 @@
   .hero{ width:100%; aspect-ratio:4/3; border-radius:14px; overflow:hidden; background:var(--panel2); margin:6px 0 10px; display:flex; align-items:center; justify-content:center; font-size:56px; color:var(--dim); }
   .hero img{ width:100%; height:100%; object-fit:cover; }
 
+  .topbtns{ display:flex; gap:8px; align-items:center; flex:none; }
+  .installpill{ background:var(--accent); color:var(--accent-ink); border:none; border-radius:20px; padding:8px 14px; font-weight:700; font-size:13.5px; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
+  .install{ display:flex; gap:14px; align-items:flex-start; background:var(--accent-soft); border:1px solid var(--accent); border-radius:16px; padding:16px; margin-bottom:12px; }
+  .install img{ width:52px; height:52px; border-radius:12px; flex:none; }
+  .install .t{ font-weight:700; font-size:16px; }
+  .install .s{ font-size:13.5px; color:var(--dim); margin-top:2px; }
+  .install ol{ margin:8px 0 0 18px; font-size:14px; }
+  .install ol li{ margin:3px 0; }
   .signin{ max-width:420px; margin:40px auto 0; }
   .signin h1{ font-size:26px; letter-spacing:-0.4px; margin-bottom:6px; }
   .err{ color:var(--red); font-size:13.5px; margin-top:10px; min-height:18px; }
@@ -204,7 +212,7 @@
 <div class="wrap">
   <div class="top" id="top">
     <div class="top-left"><div class="eyebrow" id="eyebrow">Thread Tribe Trade</div><div class="title" id="title">Welcome</div></div>
-    <button class="sync hidden" id="sync"><i></i><span id="syncText">Live</span></button>
+    <div class="topbtns"><button class="installpill hidden" id="installPill" data-a="install">⬇ Install app</button><button class="sync hidden" id="sync"><i></i><span id="syncText">Live</span></button></div>
   </div>
   <div id="signin" class="hidden"></div>
   <div id="screen" class="hidden"></div>
@@ -536,12 +544,49 @@
     document.addEventListener('visibilitychange', function(){ if(!document.hidden && session) refreshSoon(200); });
     window.addEventListener('online', function(){ flushDocs(); refreshSoon(300); });
   }
+  // ---------- install as an app ----------
+  // Android Chrome / desktop Chrome and Edge give a one-tap install prompt; iPhone and
+  // in-app browsers (WhatsApp, Instagram) don't, so those get step-by-step instructions.
+  var install = { prompt: null, done: false };
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); install.prompt = e; renderAll(); });
+  window.addEventListener('appinstalled', function(){ install.done = true; install.prompt = null; toast('Installed — open Thread Tribe Trade from your home screen'); renderAll(); });
+  function isStandalone(){ return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+  function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+  function inAppBrowser(){ return /FBAN|FBAV|Instagram|WhatsApp|Line\/|; wv\)/i.test(navigator.userAgent); }
+  function canInstall(){ return !isStandalone() && !install.done; }
+  async function doInstall(){
+    if(install.prompt){
+      var pr = install.prompt; install.prompt = null;
+      pr.prompt();
+      try{ var ch = await pr.userChoice; if(ch && ch.outcome === 'accepted') install.done = true; }catch(e){}
+      renderAll(); return;
+    }
+    openSheet('<div class="sheet-h"><div class="t">Install the app</div><button class="x" data-a="close">✕</button></div>' + installSteps() +
+      '<div class="btns"><button class="btn block" data-a="copy-link">Copy the app link</button></div>');
+  }
+  function installSteps(){
+    if(inAppBrowser()) return '<ol><li>Tap the <b>⋮</b> or <b>…</b> menu at the top.</li><li>Choose <b>Open in Chrome</b> (or <b>Open in browser</b>).</li><li>Tap <b>Install app</b> there.</li></ol>';
+    if(isIOS()) return '<ol><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>';
+    if(/android/i.test(navigator.userAgent)) return '<ol><li>Tap Chrome’s <b>⋮</b> menu (top right).</li><li>Choose <b>Install app</b> or <b>Add to Home screen</b>.</li><li>Tap <b>Install</b>.</li></ol>';
+    return '<ol><li>Click the <b>install</b> icon at the right end of the address bar,</li><li>or open the browser menu and choose <b>Install Thread Tribe Trade</b>.</li></ol>';
+  }
+  function installCard(dismissible){
+    if(!canInstall()) return '';
+    if(dismissible && store.installHideUntil && Date.now() < store.installHideUntil) return '';
+    return '<div class="install"><img src="icons/icon-192.png" alt=""><div style="flex:1;min-width:0"><div class="t">Install Thread Tribe Trade</div>' +
+      '<div class="s">One tap from your home screen, works like an app, opens straight to your orders.</div>' +
+      (install.prompt ? '<div class="btns"><button class="btn primary" data-a="install">⬇ Install app</button>' + (dismissible ? '<button class="btn small" data-a="install-later">Not now</button>' : '') + '</div>'
+        : installSteps() + (dismissible ? '<div class="btns"><button class="btn small" data-a="install-later">Not now</button></div>' : '')) +
+      '</div></div>';
+  }
+
   function renderSignin(){
     var el = document.getElementById('signin');
     if(!cloud.otpEmail){
       el.innerHTML = '<div class="signin card"><h1>Sign in</h1><p class="muted" style="font-size:15px;">Use the email you gave Thread Tribe. We’ll send you a 6-digit code — no password.</p>' +
         '<label>Email</label><input id="em" type="email" autocomplete="email" inputmode="email" value="' + esc(store.email || '') + '">' +
-        '<div class="btns"><button class="btn primary block" data-a="send-code">Send code</button></div><div class="err">' + esc(cloud.err) + '</div></div>';
+        '<div class="btns"><button class="btn primary block" data-a="send-code">Send code</button></div><div class="err">' + esc(cloud.err) + '</div></div>' +
+        '<div style="max-width:420px;margin:12px auto 0">' + installCard(false) + '</div>';
     } else {
       el.innerHTML = '<div class="signin card"><h1>Check your email</h1><p class="muted" style="font-size:15px;">We sent a code to <b style="color:var(--text);">' + esc(cloud.otpEmail) + '</b>. Check spam if it’s not there in a minute.</p>' +
         '<label>Code</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10">' +
@@ -577,6 +622,8 @@
 
   // ======================= shell =======================
   function renderSync(){
+    var pill = document.getElementById('installPill');
+    if(pill) pill.classList.toggle('hidden', !(canInstall() && install.prompt));
     var el = document.getElementById('sync');
     if(!session || !store.pack){ el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
@@ -686,7 +733,7 @@
   function renderHome(){
     var p = pack(), sv = savingsStats(), ss = salesStats(), open = p.orders.filter(isOpenOrder), reqs = openRequests(), low = lowStock();
     var invoicing = ss.count > 0;
-    var html = '<p class="hello">Hi ' + esc(p.client.contact || p.client.name || 'there') + '. Here’s how your business is doing.</p>';
+    var html = installCard(true) + '<p class="hello">Hi ' + esc(p.client.contact || p.client.name || 'there') + '. Here’s how your business is doing.</p>';
     html += '<div class="stats">' +
       '<button class="stat" data-go="business"><div class="k">Earned from your buyers</div><div class="v">' + money(ss.year) + '</div>' +
         '<div class="s">' + (invoicing ? 'Last 12 months · ' + money(ss.month) + ' this month' : 'Bill your buyers in Business to see this') + '</div></button>' +
@@ -1259,7 +1306,7 @@
   // ======================= account =======================
   function renderAccount(){
     var p = pack(), c = p.client, invoices = p.orders.filter(function(o){ return o.invoiceNumber; }), due = p.orders.filter(function(o){ return o.due > 0; });
-    return '<div class="card big"><div class="k">You owe Thread Tribe</div><div class="v">' + money(totalDue()) + '</div><div class="muted">across ' + due.length + ' order' + (due.length === 1 ? '' : 's') + ' · pay on delivery</div></div>' +
+    return installCard(false) + '<div class="card big"><div class="k">You owe Thread Tribe</div><div class="v">' + money(totalDue()) + '</div><div class="muted">across ' + due.length + ' order' + (due.length === 1 ? '' : 's') + ' · pay on delivery</div></div>' +
       (due.length ? '<div class="card">' + due.map(function(o){ return '<div class="row"><span>' + esc(o.displayId) + ' · ' + esc(PAY[o.paymentStatus] || '') + '</span><span class="r">' + money2(o.due) + '</span></div>'; }).join('') + '</div>' : '') +
       '<div class="h2">Thread Tribe invoices <span class="count">' + invoices.length + '</span></div>' +
       (invoices.length ? '<div class="card">' + invoices.map(function(o){
@@ -1347,7 +1394,13 @@
     var a = e.target.closest('[data-a]');
     if(!a) return;
     var act = a.getAttribute('data-a'), id = a.getAttribute('data-id');
-    if(act === 'send-code') sendCode();
+    if(act === 'install') doInstall();
+    else if(act === 'install-later'){ store.installHideUntil = Date.now() + 14 * 86400000; save(); renderAll(); }
+    else if(act === 'copy-link'){
+      var link = location.origin + location.pathname;
+      (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function(){ toast('Link copied — paste it into Chrome or Safari'); }).catch(function(){ prompt('Copy this link:', link); });
+    }
+    else if(act === 'send-code') sendCode();
     else if(act === 'verify') verify();
     else if(act === 'restart'){ cloud.otpEmail = ''; cloud.err = ''; renderSignin(); }
     else if(act === 'signout'){ if(confirm('Sign out of the Thread Tribe trade app?')) signOut(); }
