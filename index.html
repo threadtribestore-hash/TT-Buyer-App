@@ -1255,7 +1255,8 @@
     var ss = salesStats();
     return '<div class="stats"><div class="stat"><div class="k">Earned this month</div><div class="v">' + money(ss.month) + '</div><div class="s">after your cost</div></div>' +
       '<div class="stat"><div class="k">To collect</div><div class="v">' + money(ss.receivable) + '</div><div class="s">from your buyers</div></div></div>' +
-      '<div class="btns" style="margin-bottom:10px"><button class="btn primary block" data-a="new-invoice">+ New invoice</button></div>' +
+      '<div class="btns" style="margin-bottom:10px"><button class="btn primary" style="flex:1" data-a="new-invoice">+ New invoice</button><button class="btn" data-a="export">Export for accountant</button></div>' +
+      duesHtml() + '<div class="h2">All invoices</div>' +
       '<input class="search" id="bq" type="search" placeholder="Search invoices" value="' + esc(bizQuery) + '">' +
       (invs.length ? invs.map(function(i){
         var st = invStatus(i), c = i.customer || {};
@@ -1344,7 +1345,8 @@
       '<div class="hint">Applied to every invoice for this customer, on top of your order-size discounts (up to your maximum).</div>' +
       '<label>Notes</label><textarea id="c-notes">' + esc(c.notes) + '</textarea>' +
       '<div class="btns"><button class="btn primary block" data-a="save-customer" data-id="' + esc(id || '') + '">Save</button></div>' +
-      (id ? '<div class="btns"><button class="btn small" data-a="invoice-for" data-id="' + esc(id) + '">New invoice for them</button><button class="btn small danger" data-a="del-customer" data-id="' + esc(id) + '">Delete</button></div>' : ''));
+      (id ? '<div class="btns"><button class="btn small" data-a="invoice-for" data-id="' + esc(id) + '">New invoice for them</button>' +
+        (dues().some(function(d){ return d.customerId === id; }) ? '<button class="btn small" data-a="remind" data-k="' + esc(id) + '">Remind to pay</button>' : '') + '<button class="btn small danger" data-a="del-customer" data-id="' + esc(id) + '">Delete</button></div>' : ''));
   }
   function saveCustomer(id){
     var c = { business: val('c-business'), name: val('c-name'), phone: val('c-phone'), gstin: val('c-gstin').toUpperCase(), address: val('c-address'),
@@ -1507,6 +1509,102 @@
       '<p style="margin-top:28px;text-align:right">For ' + esc(se.bizName) + '<br><br><br>Authorised signatory</p></div>';
     el.classList.remove('hidden');
   }
+  // ======================= less admin: GST export and payment reminders =======================
+  function dues(){
+    var by = {};
+    list('invoices').forEach(function(i){
+      if(i.status === 'cancelled') return;
+      var due = r2((i.total || 0) - (i.paid || 0));
+      if(due <= 0.5) return;
+      var k = i.customerId || ('walkin:' + ((i.customer && (i.customer.business || i.customer.name)) || ''));
+      if(!by[k]) by[k] = { key: k, customerId: i.customerId, customer: i.customer || {}, invoices: [], total: 0, oldest: i.date };
+      by[k].invoices.push({ no: i.no, date: i.date, due: due });
+      by[k].total += due;
+      if((i.date || '') < by[k].oldest) by[k].oldest = i.date;
+    });
+    return Object.keys(by).map(function(k){ var d = by[k]; d.invoices.sort(function(a, b){ return (a.date || '').localeCompare(b.date || ''); }); return d; })
+      .sort(function(a, b){ return b.total - a.total; });
+  }
+  function daysSince(d){ return d ? Math.max(0, Math.round((new Date(today()) - new Date(d)) / 86400000)) : 0; }
+  function duesHtml(){
+    var ds = dues();
+    if(!ds.length) return '';
+    return '<div class="h2">To collect <span class="count">' + money(ds.reduce(function(t, d){ return t + d.total; }, 0)) + '</span></div><div class="card">' + ds.slice(0, 8).map(function(d){
+      var c = d.customerId ? store.docs.customers[d.customerId] || d.customer : d.customer, age = daysSince(d.oldest);
+      return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(c.business || c.name || 'Walk-in') + '</div><div class="muted">' + d.invoices.length + ' invoice' + (d.invoices.length === 1 ? '' : 's') + ' · ' + (age === 0 ? 'billed today' : 'oldest ' + age + ' day' + (age === 1 ? '' : 's')) + '</div></div>' +
+        '<span class="r"' + (age > 30 ? ' style="color:var(--red)"' : '') + '>' + money(d.total) + '</span>' +
+        '<button class="btn small" data-a="remind" data-k="' + esc(d.key) + '">Remind</button></div>';
+    }).join('') + '</div>';
+  }
+  function remind(key){
+    var d = dues().find(function(x){ return x.key === key; }); if(!d) return;
+    var c = d.customerId ? store.docs.customers[d.customerId] || d.customer : d.customer, s = settings();
+    var lines = ['Hello' + (c.name ? ' ' + c.name : '') + ',', '', 'A friendly reminder of the amount due to ' + (s.bizName || 'us') + ':', ''];
+    d.invoices.forEach(function(i){ lines.push('• ' + i.no + ' (' + fmtDate(i.date) + ') — ' + money2(i.due)); });
+    lines.push('', '*Total due: ' + money2(d.total) + '*');
+    if(s.upi) lines.push('', 'Pay by UPI: ' + s.upi);
+    if(s.bank) lines.push('Bank: ' + s.bank.replace(/\n/g, ', '));
+    lines.push('', 'Thank you!', s.bizName || '');
+    var phone = String(c.phone || '').replace(/\D/g, '');
+    if(phone.length === 10) phone = '91' + phone;
+    window.open('https://wa.me/' + (phone.length >= 11 ? phone : '') + '?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+  }
+  function exportSheet(){
+    var months = [], d = new Date(); d.setDate(1);
+    for(var i = 0; i < 12; i++){ var x = new Date(d.getFullYear(), d.getMonth() - i, 1); months.push(iso(x).slice(0, 7)); }
+    openSheet('<div class="sheet-h"><div class="t">Export for your accountant</div><button class="x" data-a="close">✕</button></div>' +
+      '<p class="muted">Spreadsheet files (CSV) that open in Excel or Google Sheets. Cancelled invoices are listed but not totalled.</p>' +
+      '<label>Month</label><select id="ex-month">' + months.map(function(m){
+        var n = list('invoices').filter(function(i){ return monthKey(i.date) === m; }).length;
+        return '<option value="' + m + '">' + new Date(m + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) + ' · ' + n + ' invoice' + (n === 1 ? '' : 's') + '</option>';
+      }).join('') + '</select>' +
+      '<div class="btns"><button class="btn primary block" data-a="export-register">Download sales register</button></div>' +
+      '<div class="btns"><button class="btn block" data-a="export-hsn">Download HSN summary</button></div>');
+  }
+  function csvCell(v){ v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function downloadCsv(name, rows){
+    var text = '﻿' + rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+    var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    try{
+      var file = new File([blob], name, { type: 'text/csv' });
+      if(navigator.canShare && navigator.canShare({ files: [file] }) && /android|iphone|ipad/i.test(navigator.userAgent)){ navigator.share({ files: [file], title: name }).catch(function(){}); return; }
+    }catch(e){}
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  function monthInvoices(m){ return list('invoices').filter(function(i){ return monthKey(i.date) === m; }).sort(function(a, b){ return (a.date || '').localeCompare(b.date || '') || (a.no || '').localeCompare(b.no || ''); }); }
+  function exportRegister(){
+    var m = val('ex-month'), s = settings(), rows = [['Invoice no', 'Date', 'Buyer', 'Buyer GSTIN', 'Place of supply', 'Taxable value', 'GST %', 'CGST', 'SGST', 'IGST', 'Round off', 'Invoice total', 'Received', 'Balance', 'Status']];
+    var tot = { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
+    monthInvoices(m).forEach(function(i){
+      var c = i.customer || {}, g = i.gst || {}, cancelled = i.status === 'cancelled';
+      rows.push([i.no, i.date, c.business || c.name || 'Walk-in', c.gstin || '', c.state || s.state || '', r2(i.taxable), i.gstRate, r2(g.cgst), r2(g.sgst), r2(g.igst), r2(i.roundOff), r2(i.total), r2(i.paid), r2((i.total || 0) - (i.paid || 0)), cancelled ? 'Cancelled' : PAY[invStatus(i)]]);
+      if(!cancelled){ tot.taxable += i.taxable || 0; tot.cgst += g.cgst || 0; tot.sgst += g.sgst || 0; tot.igst += g.igst || 0; tot.total += i.total || 0; }
+    });
+    if(rows.length === 1){ toast('No invoices in that month'); return; }
+    rows.push([]); rows.push(['Total (excluding cancelled)', '', '', '', '', r2(tot.taxable), '', r2(tot.cgst), r2(tot.sgst), r2(tot.igst), '', r2(tot.total)]);
+    downloadCsv('Sales register ' + m + ' - ' + (s.bizName || 'invoices').replace(/[^\w\- ]/g, '') + '.csv', rows);
+  }
+  function exportHsn(){
+    var m = val('ex-month'), s = settings(), by = {};
+    monthInvoices(m).forEach(function(i){
+      if(i.status === 'cancelled') return;
+      var keep = 1 - (i.discountPct || 0) / 100, inter = i.gst && i.gst.type === 'inter';
+      (i.lines || []).forEach(function(l){
+        var k = (l.hsn || s.hsn || '') + '|' + i.gstRate;
+        if(!by[k]) by[k] = { hsn: l.hsn || s.hsn || '', rate: i.gstRate, qty: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0 };
+        var tv = num(l.qty) * num(l.rate) * keep, tax = tv * i.gstRate / 100;
+        by[k].qty += num(l.qty); by[k].taxable += tv;
+        if(inter) by[k].igst += tax; else { by[k].cgst += tax / 2; by[k].sgst += tax / 2; }
+      });
+    });
+    var keys = Object.keys(by);
+    if(!keys.length){ toast('No invoices in that month'); return; }
+    var rows = [['HSN', 'GST %', 'Quantity (pcs)', 'Taxable value', 'CGST', 'SGST', 'IGST', 'Total tax']];
+    keys.sort().forEach(function(k){ var x = by[k]; rows.push([x.hsn, x.rate, x.qty, r2(x.taxable), r2(x.cgst), r2(x.sgst), r2(x.igst), r2(x.cgst + x.sgst + x.igst)]); });
+    downloadCsv('HSN summary ' + m + ' - ' + (s.bizName || 'invoices').replace(/[^\w\- ]/g, '') + '.csv', rows);
+  }
+
   function shareInvoice(id){
     var i = store.docs.invoices[id]; if(!i) return;
     var c = i.customer || {}, se = i.seller || {}, due = Math.max(0, i.total - (i.paid || 0));
@@ -1654,6 +1752,10 @@
     else if(act === 'order') orderSheet(id);
     else if(act === 'reorder') reorder(id);
     else if(act === 'claim') claimSheet(id);
+    else if(act === 'remind') remind(a.getAttribute('data-k'));
+    else if(act === 'export') exportSheet();
+    else if(act === 'export-register') exportRegister();
+    else if(act === 'export-hsn') exportHsn();
     else if(act === 'copy-awb'){ var awb = a.getAttribute('data-v'); (navigator.clipboard ? navigator.clipboard.writeText(awb) : Promise.reject()).then(function(){ toast('Copied ' + awb); }).catch(function(){ prompt('AWB', awb); }); }
     else if(act === 'send-claim') sendClaim(id);
     else if(act === 'del-photo'){ claimPhotos.splice(+a.getAttribute('data-i'), 1); addClaimPhotos([]); }
