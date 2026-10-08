@@ -104,6 +104,91 @@
   .bdgs{ position:absolute; top:8px; left:8px; display:flex; gap:4px; z-index:1; }
   .bdg{ font-size:11px; font-weight:700; padding:3px 7px; border-radius:8px; background:rgba(0,0,0,0.65); color:#fff; }
   .bdg.new{ background:var(--accent); color:var(--accent-ink); }
+  body.fit{ padding-bottom:0; height:100vh; height:100dvh; overflow:hidden; }
+  .home{ display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
+  .home .qa .qi{ width:48px; height:48px; border-radius:14px; }
+  .home .att-row{ padding:9px 12px; gap:10px; }
+  .home .att-ic{ width:32px; height:32px; font-size:15px; border-radius:10px; }
+  .home .att-t{ font-size:14px; }
+  .kpi-foot span:first-child{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-right:8px; }
+  .scard .p{ white-space:nowrap; }
+  body.short .kpi-foot{ display:none; }
+  body.short .home .kpi .hv{ font-size:21px; }
+  body.short .home .qa .qi{ width:42px; height:42px; }
+  body.short .home .qa button{ gap:4px; font-size:11.5px; }
+  body.short .home{ gap:8px; }
+  .greet{ display:flex; justify-content:space-between; align-items:baseline; margin:0 4px; flex:none; }
+  .greet .g1{ font-size:17px; font-weight:700; letter-spacing:-0.2px; }
+  .greet .g2{ font-size:12.5px; color:var(--dim); }
+  .home .kpi{ display:block; width:100%; border:none; text-align:left; cursor:pointer; margin:0; padding:12px 16px 9px; flex:none; font:inherit; }
+  .home .hv{ font-size:23px; }
+  .kpi-foot{ display:flex; justify-content:space-between; }
+  .home .qa{ margin:0; flex:none; }
+  .home .att{ flex:none; }
+  .att-bar{ display:block; height:4px; background:var(--panel2); border-radius:3px; margin-top:5px; overflow:hidden; }
+  .att-bar i{ display:block; height:100%; background:var(--accent); border-radius:3px; }
+  .att-row.more .att-t{ color:var(--accent); }
+  .strip{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .strip-tabs{ display:flex; gap:6px; align-items:center; overflow-x:auto; scrollbar-width:none; margin-bottom:8px; flex:none; }
+  .strip-tabs::-webkit-scrollbar{ display:none; }
+  .strip-tabs button[data-strip]{ flex:none; border:1px solid var(--line); background:var(--panel); border-radius:20px; padding:6px 12px; font-size:13px; font-weight:600; color:var(--dim); cursor:pointer; white-space:nowrap; }
+  .strip-tabs button.on{ background:var(--text); color:var(--bg); border-color:var(--text); }
+  .strip-tabs .link{ margin-left:auto; flex:none; font-size:13px; }
+  .strip-row{ flex:1; min-height:0; display:flex; gap:10px; overflow-x:auto; margin:0 -16px; padding:0 16px 2px; scrollbar-width:none; }
+  .strip-row::-webkit-scrollbar{ display:none; }
+  .scard{ flex:none; height:100%; aspect-ratio:0.72; max-width:190px; background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; box-shadow:var(--shadow); }
+  .scard .ph{ position:relative; flex:1; min-height:0; width:100%; background:var(--panel2); border:none; padding:0; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer; }
+  .scard .ph img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .sc-b{ padding:7px 9px 8px; flex:none; }
+  .scard .n{ font-size:12.5px; font-weight:600; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sc-f{ display:flex; justify-content:space-between; align-items:center; margin-top:3px; }
+  .scard .p{ font-size:13px; font-weight:700; }
+  .sc-add{ width:28px; height:28px; border-radius:9px; border:none; background:var(--accent); color:var(--accent-ink); font-size:18px; font-weight:700; line-height:1; cursor:pointer; }
+  .kpi{ border-radius:20px; padding:18px 18px 12px; margin-bottom:14px; color:#fff;
+    background:linear-gradient(135deg, #17877e 0%, #1f9e93 45%, #3cb98a 100%); box-shadow:0 8px 24px rgba(31,158,147,0.28); }
+  .kpi-row{ display:flex; align-items:stretch; gap:14px; }
+  .kpi-col{ flex:1; min-width:0; background:none; border:none; color:inherit; text-align:left; padding:0; cursor:pointer; }
+  .kpi-div{ width:1px; background:rgba(255,255,255,0.3); }
+  .hk{ font-size:12.5px; opacity:0.85; }
+  .hv{ font-size:26px; font-weight:700; letter-spacing:-0.6px; margin-top:2px; }
+  .hs{ font-size:12.5px; opacity:0.9; margin-top:1px; }
+  .kpi-bars{ display:flex; align-items:flex-end; gap:5px; height:34px; margin-top:14px; }
+  .kpi-bars i{ flex:1; background:rgba(255,255,255,0.45); border-radius:4px 4px 2px 2px; }
+  .kpi-bars i:last-child{ background:#fff; }
+  .kpi-foot{ font-size:11px; opacity:0.75; margin-top:6px; }
+  .qa{ display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:6px; }
+  .qa button{ display:flex; flex-direction:column; align-items:center; gap:6px; background:none; border:none; padding:4px 0; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; text-align:center; line-height:1.2; }
+  .qa .qi{ position:relative; width:54px; height:54px; border-radius:16px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow); }
+  .qa .qi svg{ width:24px; height:24px; fill:none; stroke:var(--accent); stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .qa .qb{ position:absolute; top:-5px; right:-5px; background:var(--red); color:#fff; font-size:11px; min-width:19px; height:19px; border-radius:10px; display:flex; align-items:center; justify-content:center; padding:0 5px; }
+  .att{ background:var(--panel); border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:var(--shadow); }
+  .att-row{ display:flex; align-items:center; gap:12px; width:100%; background:none; border:none; border-bottom:1px solid var(--line); padding:12px 14px; text-align:left; cursor:pointer; }
+  .att-row:last-child{ border-bottom:none; }
+  .att-ic{ width:36px; height:36px; flex:none; border-radius:11px; background:var(--panel2); display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .att-row.info .att-ic{ background:var(--accent-soft); } .att-row.warn .att-ic{ background:var(--amber-soft); } .att-row.good .att-ic{ background:var(--green-soft); }
+  .att-b{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .att-t{ font-weight:600; font-size:14.5px; }
+  .att-s{ font-size:12.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prog{ display:block; width:100%; text-align:left; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:8px; cursor:pointer; box-shadow:var(--shadow); }
+  .prog-h{ display:flex; gap:8px; align-items:baseline; }
+  .prog-h span{ color:var(--dim); font-size:13px; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prog-h .prog-p{ flex:none; color:var(--accent); font-weight:700; font-size:14px; }
+  .prog-s{ font-size:12.5px; color:var(--dim); margin-top:6px; }
+  .coll{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; background:var(--panel); border:1px solid var(--accent); border-radius:16px; padding:10px 12px; margin:12px 0 4px; cursor:pointer; box-shadow:var(--shadow); }
+  .coll-pics{ display:flex; flex:none; }
+  .coll-pics img{ width:46px; height:46px; border-radius:12px; object-fit:cover; border:2px solid var(--panel); margin-left:-14px; }
+  .coll-pics img:first-child{ margin-left:0; }
+  .coll-b{ flex:1; min-width:0; }
+  .coll-t{ font-weight:700; }
+  .coll-s{ font-size:12.5px; color:var(--dim); }
+  .pcard{ flex:none; width:132px; background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; padding:0; cursor:pointer; text-align:left; display:flex; flex-direction:column; box-shadow:var(--shadow); }
+  .pcard .ph{ position:relative; aspect-ratio:1/1; width:100%; background:var(--panel2); border:none; padding:0; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer; }
+  .pcard .ph img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .pcard .n{ font-size:12.5px; font-weight:600; padding:7px 9px 0; line-height:1.25; }
+  .pcard .p{ font-size:13px; font-weight:700; padding:2px 9px 9px; }
+  .pcard-add{ margin:4px 8px 8px; }
+  .rank{ position:absolute; top:6px; left:6px; background:rgba(0,0,0,0.65); color:#fff; font-size:11px; font-weight:700; padding:3px 7px; border-radius:8px; z-index:1; }
+  .rank.new{ background:var(--accent); color:var(--accent-ink); }
   .hscroll{ display:flex; gap:10px; overflow-x:auto; margin:0 -16px 12px; padding:0 16px 4px; scrollbar-width:none; }
   .hscroll::-webkit-scrollbar{ display:none; }
   .mini{ flex:none; width:120px; background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; padding:0; cursor:pointer; text-align:left; }
@@ -716,13 +801,15 @@
     nav.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === navTab); });
     document.getElementById('eyebrow').textContent = pack().client.name || 'Thread Tribe Trade';
     var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Supplies', business: 'Business', account: 'Account' };
-    document.getElementById('title').textContent = titles[tab];
+    document.getElementById('title').textContent = tab === 'home' ? greeting() + ', ' + ((pack().client.contact || pack().client.name || '').split(' ')[0] || 'there') : titles[tab];
     screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, business: renderBusiness, account: renderAccount })[tab]();
+    document.body.classList.toggle('fit', tab === 'home');
     if(store.cart.length && tab !== 'cart'){
       var ct = cartTotals();
       bar.innerHTML = '<span>Cart · ' + ct.qty + ' pcs' + (ct.pct ? ' · ' + ct.pct + '% off' : '') + '</span><span>' + money(ct.sub) + ' ›</span>';
       bar.classList.remove('hidden');
     }
+    if(tab === 'home') fitHome();
   }
 
   // ======================= home: insights from their history =======================
@@ -783,58 +870,146 @@
       return '<div class="b" title="' + monthLabel(k) + ': earned ' + money(e) + ', saved ' + money(s) + '"><div class="pair"><i style="height:' + h(e) + '%"></i><i class="sv" style="height:' + h(s) + '%"></i></div><span>' + monthLabel(k).slice(0, 1) + '</span></div>';
     }).join('') + '</div><div class="legend"><span><i></i>Earned</span><span><i class="sv"></i>Saved</span></div>';
   }
-  function renderHome(){
-    var p = pack(), sv = savingsStats(), ss = salesStats(), open = p.orders.filter(isOpenOrder), reqs = openRequests(), low = lowStock();
-    var invoicing = ss.count > 0;
-    var html = installCard(true) + '<p class="hello">Hi ' + esc(p.client.contact || p.client.name || 'there') + '. Here’s how your business is doing.</p>';
-    html += '<div class="stats">' +
-      '<button class="stat" data-go="business"><div class="k">Earned from your buyers</div><div class="v">' + money(ss.year) + '</div>' +
-        '<div class="s">' + (invoicing ? 'Last 12 months · ' + money(ss.month) + ' this month' : 'Bill your buyers in Business to see this') + '</div></button>' +
-      '<div class="stat"><div class="k">Saved with Thread Tribe</div><div class="v" style="color:var(--green)">' + money(sv.year) + '</div>' +
-        '<div class="s">' + 'Last 12 months · ' + money(sv.month) + ' this month</div></div>' +
-      '</div>';
-    html += '<div class="card"><div class="muted">By month</div>' + chart(ss.months, sv.months) + '</div>';
-    if(invoicing){
-      html += '<div class="stats">' +
-        '<button class="stat" data-go="business"><div class="k">To collect</div><div class="v">' + money(ss.receivable) + '</div><div class="s">from your buyers</div></button>' +
-        '<div class="stat"><div class="k">Best buyer</div><div class="v" style="font-size:16px">' + esc(ss.topCustomers[0] ? ss.topCustomers[0][0] : '—') + '</div><div class="s">' + (ss.topCustomers[0] ? money(ss.topCustomers[0][1]) + ' earned' : '') + '</div></div></div>';
-    }
-    if(low.length){
-      html += '<div class="h2">Running low <span class="count">' + low.length + '</span></div><div class="card">' + low.slice(0, 5).map(function(r){
-        return '<div class="row"><div><div style="font-weight:600">' + esc(r.name) + '</div><div class="muted">' + r.onHand + ' left</div></div><button class="btn small" data-a="quick-add" data-id="' + esc(r.id) + '">Reorder</button></div>';
-      }).join('') + '</div>';
-    }
-    // What's moving: collections Thread Tribe is pushing, trending toys, new arrivals.
-    collectionsLive().forEach(function(c){
-      html += '<button class="item" data-a="open-seg" data-v="col:' + esc(c.id) + '" style="border-color:var(--accent)"><div class="body"><div class="t">🎁 ' + esc(c.name) + '</div>' +
-        '<div class="s">' + (c.items || []).length + ' toys' + (c.note ? ' · ' + esc(c.note) : '') + (c.until ? ' · until ' + fmtDate(c.until) : '') + '</div></div><span class="chev">›</span></button>';
-    });
-    var tr = (pack().trending || []).map(function(n){ return catalogue().find(function(p){ return nameKey(p.name) === nameKey(n); }); }).filter(Boolean);
-    if(tr.length){
-      html += '<div class="h2">🔥 Trending with resellers <button class="link" data-a="open-seg" data-v="trending">See all</button></div><div class="card">' + tr.slice(0, 5).map(function(p, i){
-        return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + (i + 1) + '. ' + esc(p.name) + '</div><div class="muted">' + (onRequest(p) ? 'Price on request' : money(costOf(p)) + ' / pc') + (p.retail ? ' · retail ' + money(p.retail) : '') + '</div></div>' +
-          '<button class="btn small" data-a="product" data-id="' + esc(p.id) + '">View</button></div>';
-      }).join('') + '</div>';
-    }
-    var fresh = catalogue().filter(isNew).sort(function(a, b){ return (b.published || '').localeCompare(a.published || ''); });
-    if(fresh.length){
-      html += '<div class="h2">✨ New arrivals <button class="link" data-a="open-seg" data-v="new">See all</button></div><div class="hscroll">' + fresh.slice(0, 8).map(function(p){
-        return '<button class="mini" data-a="product" data-id="' + esc(p.id) + '"><div class="ph">' + (p.photo ? '<img loading="lazy" alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div><div class="n">' + esc(p.name) + '</div></button>';
-      }).join('') + '</div>';
-    }
-    if(sv.products.length){
-      html += '<div class="h2">Your best sellers · 12 months</div><div class="card">' + sv.products.slice(0, 5).map(function(x){
-        var p2 = x.id && product(x.id), days = x.last ? Math.round((new Date(today()) - new Date(x.last)) / 86400000) : null;
-        return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(x.name) + '</div><div class="muted">' + x.qty.toLocaleString('en-IN') + ' pcs' +
-          (days !== null ? ' · last bought ' + (days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago') : '') + '</div></div>' +
-          (p2 ? '<button class="btn small" data-a="quick-add" data-id="' + esc(p2.id) + '">Add</button>' : '') + '</div>';
-      }).join('') + '</div>';
-    }
-    if(reqs.length) html += '<div class="h2">Waiting for Thread Tribe <span class="count">' + reqs.length + '</span></div>' + reqs.map(requestItem).join('');
-    html += '<div class="h2">Open supply orders' + (totalDue() ? ' <span class="count">' + money(totalDue()) + ' due</span>' : '') + '</div>' +
-      (open.length ? open.map(orderItem).join('') : '<div class="card empty"><b>No open supply orders</b>Restock from the shop.<div class="btns" style="justify-content:center;"><button class="btn primary small" data-go="shop">Open shop</button></div></div>');
-    return html;
+  // ======================= home =======================
+  // Order of the page = order of a reseller's questions when they open the app:
+  // how am I doing → what can I do in one tap → what needs me → what's moving → details.
+  var ICONS = {
+    invoice: '<svg viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg>',
+    restock: '<svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11h11L21 7H7"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/></svg>',
+    share: '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
+    collect: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>'
+  };
+  function greeting(){ var h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
+  function heroBars(earned, saved){
+    var keys = [], d = new Date(); d.setDate(1);
+    for(var i = 5; i >= 0; i--){ keys.push(iso(new Date(d.getFullYear(), d.getMonth() - i, 1)).slice(0, 7)); }
+    var vals = keys.map(function(k){ return Math.max(0, earned[k] || 0) + (saved[k] || 0); }), max = Math.max.apply(null, vals.concat([1]));
+    return '<div class="kpi-bars">' + vals.map(function(v, i){ return '<i style="height:' + Math.max(8, Math.round(100 * v / max)) + '%" title="' + monthLabel(keys[i]) + '"></i>'; }).join('') + '</div>';
   }
+  function attention(){
+    var p = pack(), out = [];
+    p.orders.forEach(function(o){
+      if(o.status === 'shipped') out.push({ ic: '🚚', cls: 'info', t: o.displayId + ' is on its way', s: [o.courier, o.trackingNo ? 'AWB ' + o.trackingNo : ''].filter(Boolean).join(' · ') || 'Dispatched ' + fmtDate(o.shippedDate), a: 'order', id: o.id });
+      else if(o.status === 'production_done') out.push({ ic: '📦', cls: 'good', t: o.displayId + ' is ready', s: o.dispatchBy ? 'Ships by ' + fmtDate(o.dispatchBy) : 'Packed and waiting to ship', a: 'order', id: o.id });
+    });
+    var replied = (store.requests || []).filter(function(q){ return q.status !== 'open' && q.status !== 'cancelled' && q.reply && (q.updated_at || '') >= daysAgo(3); })[0];
+    if(replied) out.push({ ic: '💬', cls: 'info', t: 'Thread Tribe replied', s: replied.reply, go: 'orders', seg: 'requests' });
+    var od = dues().filter(function(d){ return daysSince(d.oldest) > 15; });
+    if(od.length) out.push({ ic: '💰', cls: 'warn', t: money(od.reduce(function(t, d){ return t + d.total; }, 0)) + ' overdue from ' + od.length + ' buyer' + (od.length === 1 ? '' : 's'), s: 'More than 15 days — tap to send reminders', go: 'business', bseg: 'invoices' });
+    var low = lowStock();
+    if(low.length) out.push({ ic: '⚠️', cls: 'warn', t: low.length + ' toy' + (low.length === 1 ? '' : 's') + ' running low', s: low.slice(0, 3).map(function(r){ return r.name + ' (' + r.onHand + ')'; }).join(', '), go: 'business', bseg: 'stock' });
+    var waiting = openRequests().length;
+    if(waiting) out.push({ ic: '⏳', cls: '', t: waiting + ' request' + (waiting === 1 ? '' : 's') + ' with Thread Tribe', s: 'They’ll reply here', go: 'orders', seg: 'requests' });
+    if(totalDue() > 0) out.push({ ic: '🧾', cls: '', t: money(totalDue()) + ' due to Thread Tribe', s: 'Pay on delivery', go: 'account' });
+    return out;
+  }
+  function photoCard(p, extra, action){
+    return '<button class="pcard" data-a="' + (action || 'product') + '" data-id="' + esc(p.id) + '"><div class="ph">' + (extra || '') + (p.photo ? '<img loading="lazy" alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
+      '<div class="n">' + esc(p.name) + '</div><div class="p">' + (onRequest(p) ? 'On request' : money(costOf(p))) + '</div></button>';
+  }
+  function renderHome(){
+    var p = pack(), sv = savingsStats(), ss = salesStats(), invoicing = ss.count > 0, biz = !cloud.bizMissing;
+    var html = '<div class="home">';
+    // how am I doing
+    html += '<button class="kpi" data-a="insights"><div class="kpi-row">' +
+      '<div class="kpi-col"><div class="hk">You earned</div><div class="hv">' + (invoicing ? money(ss.year) : '—') + '</div><div class="hs">' + (invoicing ? money(ss.month) + ' this month' : 'Start billing in Business') + '</div></div>' +
+      '<div class="kpi-div"></div>' +
+      '<div class="kpi-col"><div class="hk">You saved</div><div class="hv">' + money(sv.year) + '</div><div class="hs">' + money(sv.month) + ' this month</div></div>' +
+      '</div><div class="kpi-foot"><span>From your buyers · with Thread Tribe · 12 months</span><span>Details ›</span></div></button>';
+    // one-tap actions
+    var dueCount = dues().length;
+    html += '<div class="qa">' +
+      (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>New invoice</button>' : '') +
+      '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>' +
+      '<button data-a="share-catalog"><span class="qi">' + ICONS.share + '</span>Share</button>' +
+      (biz ? '<button data-a="home-collect"><span class="qi">' + ICONS.collect + (dueCount ? '<b class="qb">' + dueCount + '</b>' : '') + '</span>Collect</button>' : '') +
+      '</div>';
+    // what needs me (fits the screen; the rest behind "+N more")
+    // Rows that fit: fewer on short phones, and fewer again when the cart bar is showing.
+    var att = attentionAll(), room = window.innerHeight - (store.cart.length ? 66 : 0), rows = room < 640 ? 1 : room < 740 ? 2 : 3;
+    if(att.length){
+      var shown = att.length > rows ? att.slice(0, Math.max(0, rows - 1)) : att;
+      var moreRow = rows === 1
+        ? '<button class="att-row ' + att[0].cls + '" data-a="att-more"><span class="att-ic">' + att[0].ic + '</span><span class="att-b"><span class="att-t">' + esc(att[0].t) + '</span><span class="att-s">+' + (att.length - 1) + ' more update' + (att.length === 2 ? '' : 's') + '</span></span><span class="chev">›</span></button>'
+        : '<button class="att-row more" data-a="att-more"><span class="att-ic">＋</span><span class="att-b"><span class="att-t">' + (att.length - shown.length) + ' more updates</span></span><span class="chev">›</span></button>';
+      html += '<div class="att">' + shown.map(attRow).join('') + (att.length > rows ? moreRow : '') + '</div>';
+    } else {
+      html += '<div class="att"><div class="att-row"><span class="att-ic">✅</span><span class="att-b"><span class="att-t">All caught up</span><span class="att-s">Nothing needs you right now</span></span></div></div>';
+    }
+    // what's moving: one strip that fills the rest of the screen
+    var strips = homeStrips();
+    if(strips.length){
+      if(!strips.some(function(s){ return s.key === homeStrip; })) homeStrip = strips[0].key;
+      var cur = strips.find(function(s){ return s.key === homeStrip; });
+      html += '<div class="strip"><div class="strip-tabs">' + strips.map(function(s){ return '<button data-strip="' + s.key + '" class="' + (s.key === homeStrip ? 'on' : '') + '">' + s.label + '</button>'; }).join('') +
+        '<button class="link" data-a="open-seg" data-v="' + cur.seg + '">See all</button></div>' +
+        '<div class="strip-row">' + cur.items.slice(0, 10).map(function(x, i){ return stripCard(x, cur.key === 'trending' ? '#' + (i + 1) : cur.key === 'new' ? 'NEW' : ''); }).join('') + '</div></div>';
+    }
+    return html + '</div>';
+  }
+  var homeStrip = 'trending';
+  function homeStrips(){
+    var p = pack(), out = [];
+    var tr = (p.trending || []).map(function(n){ return catalogue().find(function(x){ return nameKey(x.name) === nameKey(n); }); }).filter(Boolean);
+    if(tr.length) out.push({ key: 'trending', label: '🔥 Trending', items: tr, seg: 'trending' });
+    var favs = savingsStats().products.map(function(x){ return x.id && product(x.id); }).filter(Boolean);
+    if(favs.length) out.push({ key: 'favs', label: '★ Reorder', items: favs, seg: 'all' });
+    var fresh = catalogue().filter(isNew).sort(function(a, b){ return (b.published || '').localeCompare(a.published || ''); });
+    if(fresh.length) out.push({ key: 'new', label: '✨ New', items: fresh, seg: 'new' });
+    collectionsLive().forEach(function(c){
+      var items = (c.items || []).map(function(n){ return catalogue().find(function(x){ return nameKey(x.name) === nameKey(n); }); }).filter(Boolean);
+      if(items.length) out.push({ key: 'col:' + c.id, label: '🎁 ' + c.name, items: items, seg: 'col:' + c.id });
+    });
+    if(!out.length && catalogue().length) out.push({ key: 'all', label: 'Our toys', items: catalogue().slice(0, 10), seg: 'all' });
+    return out;
+  }
+  function stripCard(x, tag){
+    return '<div class="scard"><button class="ph" data-a="product" data-id="' + esc(x.id) + '">' + (tag ? '<span class="rank' + (tag === 'NEW' ? ' new' : '') + '">' + tag + '</span>' : '') +
+      (x.photo ? '<img loading="lazy" alt="" src="' + esc(x.photo) + '">' : '🧸') + '</button>' +
+      '<div class="sc-b"><div class="n">' + esc(x.name) + '</div><div class="sc-f"><span class="p">' + (onRequest(x) ? 'Ask price' : money(costOf(x))) + '</span>' +
+      '<button class="sc-add" data-a="quick-add" data-id="' + esc(x.id) + '" aria-label="Add to cart">+</button></div></div></div>';
+  }
+  // Every update worth a reseller's attention, most urgent first.
+  function attentionAll(){
+    var p = pack(), out = attention();
+    p.orders.filter(function(o){ return o.status === 'booked' || o.status === 'in_production'; }).forEach(function(o){
+      var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
+      out.push({ ic: '🏭', cls: 'info', t: o.displayId + ' being made · ' + (qty ? Math.round(100 * made / qty) : 0) + '%', s: made + ' of ' + qty + ' pcs' + (o.dispatchBy ? ' · ships by ' + fmtDate(o.dispatchBy) : ''), a: 'order', id: o.id, pct: qty ? made / qty : 0 });
+    });
+    collectionsLive().forEach(function(c){ out.push({ ic: '🎁', cls: 'good', t: c.name, s: (c.items || []).length + ' toys' + (c.note ? ' · ' + c.note : ''), a: 'open-seg', v: 'col:' + c.id }); });
+    // urgency: shipments and money first, then stock and replies, then the rest
+    var rank = { '🚚': 1, '📦': 2, '💰': 3, '⚠️': 4, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
+    return out.sort(function(a, b){ return (rank[a.ic] || 9) - (rank[b.ic] || 9); });
+  }
+  function attRow(x){
+    var attrs = x.a === 'open-seg' ? 'data-a="open-seg" data-v="' + esc(x.v) + '"' : x.a ? 'data-a="' + x.a + '" data-id="' + esc(x.id) + '"' :
+      'data-a="home-go" data-go2="' + x.go + '"' + (x.seg ? ' data-seg2="' + x.seg + '"' : '') + (x.bseg ? ' data-bseg2="' + x.bseg + '"' : '');
+    return '<button class="att-row ' + x.cls + '" ' + attrs + '><span class="att-ic">' + x.ic + '</span><span class="att-b"><span class="att-t">' + esc(x.t) + '</span><span class="att-s">' + esc(x.s) + '</span>' +
+      (x.pct !== undefined ? '<span class="att-bar"><i style="width:' + Math.round(100 * x.pct) + '%"></i></span>' : '') + '</span><span class="chev">›</span></button>';
+  }
+  function attMoreSheet(){
+    openSheet('<div class="sheet-h"><div class="t">Updates</div><button class="x" data-a="close">✕</button></div><div class="att">' + attentionAll().map(attRow).join('') + '</div>');
+  }
+  function insightsSheet(){
+    var sv = savingsStats(), ss = salesStats();
+    openSheet('<div class="sheet-h"><div class="t">Your numbers</div><button class="x" data-a="close">✕</button></div>' +
+      '<div class="stats"><div class="stat"><div class="k">Earned from buyers</div><div class="v">' + money(ss.year) + '</div><div class="s">' + money(ss.month) + ' this month</div></div>' +
+      '<div class="stat"><div class="k">Saved with Thread Tribe</div><div class="v" style="color:var(--green)">' + money(sv.year) + '</div><div class="s">' + money(sv.month) + ' this month</div></div>' +
+      '<div class="stat"><div class="k">To collect</div><div class="v">' + money(ss.receivable) + '</div><div class="s">from your buyers</div></div>' +
+      '<div class="stat"><div class="k">Best buyer</div><div class="v" style="font-size:16px">' + esc(ss.topCustomers[0] ? ss.topCustomers[0][0] : '—') + '</div><div class="s">' + (ss.topCustomers[0] ? money(ss.topCustomers[0][1]) + ' earned' : '') + '</div></div></div>' +
+      '<div class="card"><div class="muted">Earned and saved by month</div>' + chart(ss.months, sv.months) + '</div>' +
+      '<p class="muted">Earned = what you billed your buyers, after your discounts and before GST, minus what those pieces cost you at your average Thread Tribe price. Saved = your trade discounts.</p>');
+  }
+  // Home is one screen: size it to the space between the header and the bottom bar.
+  function fitHome(){
+    document.body.classList.toggle('short', window.innerHeight < 720);
+    var home = document.querySelector('.home');
+    if(!home) return;
+    var nav = document.getElementById('nav'), bar = document.getElementById('cartbar');
+    var below = (nav ? nav.offsetHeight : 0) + (bar && !bar.classList.contains('hidden') ? bar.offsetHeight + 12 : 0) + 10;
+    home.style.height = Math.max(360, window.innerHeight - home.getBoundingClientRect().top - below) + 'px';
+  }
+  window.addEventListener('resize', function(){ if(tab === 'home') fitHome(); });
   function requestItem(q){
     var lines = (q.payload && q.payload.lines) || [];
     var pcs = lines.reduce(function(s, l){ return s + (l.qty || 0); }, 0);
@@ -1822,6 +1997,8 @@
     if(go){ tab = go.getAttribute('data-go'); renderAll(); window.scrollTo(0, 0); return; }
     var nb = e.target.closest('#nav [data-tab]');
     if(nb){ tab = nb.getAttribute('data-tab'); bizQuery = ''; renderAll(); window.scrollTo(0, 0); return; }
+    var stb = e.target.closest('[data-strip]');
+    if(stb){ homeStrip = stb.getAttribute('data-strip'); renderAll(); return; }
     var ksb = e.target.closest('[data-kitstyle]');
     if(ksb){
       kit.style = ksb.getAttribute('data-kitstyle');
@@ -1876,10 +2053,20 @@
     else if(act === 'order') orderSheet(id);
     else if(act === 'reorder') reorder(id);
     else if(act === 'claim') claimSheet(id);
+    else if(act === 'insights') insightsSheet();
+    else if(act === 'att-more') attMoreSheet();
+    else if(act === 'home-collect'){ tab = 'business'; bizSeg = 'invoices'; renderAll(); window.scrollTo(0, 0); }
+    else if(act === 'home-go'){
+      closeSheet();
+      tab = a.getAttribute('data-go2');
+      if(a.getAttribute('data-seg2')) orderSeg = a.getAttribute('data-seg2');
+      if(a.getAttribute('data-bseg2')) bizSeg = a.getAttribute('data-bseg2');
+      renderAll(); window.scrollTo(0, 0);
+    }
     else if(act === 'kit-save'){ var kp = product(id); if(kp) kitSave(kp, +a.getAttribute('data-i')); }
     else if(act === 'kit-share'){ var ks = product(id); if(ks) kitShare(ks); }
     else if(act === 'kit-copy') copyText(val('kit-text'), 'Caption copied');
-    else if(act === 'open-seg'){ shopSeg = a.getAttribute('data-v'); tab = 'shop'; renderAll(); window.scrollTo(0, 0); }
+    else if(act === 'open-seg'){ closeSheet(); shopSeg = a.getAttribute('data-v'); tab = 'shop'; renderAll(); window.scrollTo(0, 0); }
     else if(act === 'remind') remind(a.getAttribute('data-k'));
     else if(act === 'export') exportSheet();
     else if(act === 'export-register') exportRegister();
