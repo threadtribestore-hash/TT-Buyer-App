@@ -2113,7 +2113,10 @@
       }
     }
   }
-  function pjbItems(id, kind){ return (pjb.items[id] || []).filter(function(x){ return x.kind === kind; }); }
+  function pjbItems(id, kind){
+    var l = (pjb.items[id] || []).filter(function(x){ return x.kind === kind; });
+    return kind === 'task' ? l.sort(function(a, b){ return (a.data.due || '9999').localeCompare(b.data.due || '9999') || ((a.data.at || '').localeCompare(b.data.at || '')); }) : l;
+  }
   function pjbStage(st){ var s = PJB.find(function(x){ return x[0] === st; }); return s ? s[1] : st === 'on_hold' ? 'On hold' : st; }
   function projectItem(p){
     var d = p.data || {}, ts = pjbItems(p.id, 'task'), done = ts.filter(function(t){ return t.data.done; }).length;
