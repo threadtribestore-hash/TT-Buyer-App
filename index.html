@@ -582,7 +582,7 @@
     if(store.clientId && store.clientId !== row.client_id){ store.cart = []; store.docs = blankDocs(); store.pending = []; }
     store.clientId = row.client_id; store.pack = row.pack;
     cloud.status = 'ok';
-    await Promise.all([loadRequests(), loadDocs(), loadProjects().catch(function(){})]);
+    await Promise.all([loadRequests(), loadDocs(), loadProjects().catch(function(){}), loadTracking().catch(function(){})]);
     store.cart = store.cart.filter(function(l){ return product(l.productId); });
     save();
     if(prev) notifyChanges(prev, row.pack);
@@ -926,7 +926,11 @@
   function attention(){
     var p = pack(), out = [];
     p.orders.forEach(function(o){
-      if(o.status === 'shipped') out.push({ ic: '🚚', cls: 'info', t: o.displayId + ' is on its way', s: [o.courier, o.trackingNo ? 'AWB ' + o.trackingNo : ''].filter(Boolean).join(' · ') || 'Dispatched ' + fmtDate(o.shippedDate), a: 'order', id: o.id });
+      var tk = o.status === 'shipped' && trk[o.id] && trk[o.id].awb === o.trackingNo ? trk[o.id] : null;
+      if(tk && tk.tag === 'OutForDelivery') out.push({ ic: '🚚', cls: 'good', t: o.displayId + ' is out for delivery', s: (o.courier || 'Courier') + ((tk.checkpoints || [])[0] && tk.checkpoints[0].loc ? ' · ' + tk.checkpoints[0].loc : ''), a: 'order', id: o.id });
+      else if(tk && (tk.tag === 'AttemptFail' || tk.tag === 'Exception')) out.push({ ic: '🚚', cls: 'warn', t: o.displayId + ': ' + (TRK[tk.tag] || [''])[0].toLowerCase(), s: tk.subtag_message || 'Tap for courier updates', a: 'order', id: o.id });
+      else if(tk && tk.tag === 'Delivered') out.push({ ic: '📦', cls: 'good', t: o.displayId + ' delivered', s: 'Courier confirmed delivery · tap to report a problem', a: 'order', id: o.id });
+      else if(o.status === 'shipped') out.push({ ic: '🚚', cls: 'info', t: o.displayId + ' is on its way', s: tk ? [(TRK[tk.tag] || [tk.tag])[0], (tk.checkpoints || [])[0] && tk.checkpoints[0].loc, tk.eta ? 'expected ' + fmtDate(tk.eta) : ''].filter(Boolean).join(' · ') : ([o.courier, o.trackingNo ? 'AWB ' + o.trackingNo : ''].filter(Boolean).join(' · ') || 'Dispatched ' + fmtDate(o.shippedDate)), a: 'order', id: o.id });
       else if(o.status === 'production_done') out.push({ ic: '📦', cls: 'good', t: o.displayId + ' is ready', s: o.dispatchBy ? 'Ships by ' + fmtDate(o.dispatchBy) : 'Packed and waiting to ship', a: 'order', id: o.id });
     });
     var replied = (store.requests || []).filter(function(q){ return q.status !== 'open' && q.status !== 'cancelled' && q.reply && (q.updated_at || '') >= daysAgo(3); })[0];
@@ -1099,12 +1103,52 @@
     return '<div class="item" style="cursor:default"><div class="body"><div class="t">' + esc(title) + '</div><div class="s">' + fmtDate(q.created_at) + (q.reply ? ' · ' + esc(q.reply) : '') + '</div></div>' + chip +
       (q.status === 'open' ? '<button class="btn small" data-a="cancel-req" data-id="' + q.id + '">Cancel</button>' : '') + '</div>';
   }
+  // ---- live parcel tracking (AfterShip, through the track-parcel function; saved in parcel_tracking) ----
+  var trk = {}, trkBusy = {};
+  var TRK = { Pending: ['Waiting for first courier scan', ''], InfoReceived: ['Booked with courier', ''], InTransit: ['In transit', 'new'], OutForDelivery: ['Out for delivery', 'ok'],
+    AttemptFail: ['Delivery attempt failed', 'bad'], Delivered: ['Delivered', 'ok'], AvailableForPickup: ['Ready for pickup', 'ok'], Exception: ['Problem with delivery', 'bad'], Expired: ['No courier updates', ''] };
+  async function loadTracking(){
+    if(!sb || !session) return;
+    var r = await sb.from('parcel_tracking').select('order_id,awb,tag,subtag_message,eta,tracking_url,checkpoints,fetched_at');
+    if(r.error) return;
+    trk = {}; (r.data || []).forEach(function(x){ trk[x.order_id] = x; });
+  }
+  function ago(ts){ var m = Math.round((Date.now() - Date.parse(ts)) / 60000); return !isFinite(m) ? '' : m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; }
+  function trkTime(s){ var d = new Date(s); return isNaN(d) ? esc(String(s || '').slice(0, 16).replace('T', ' ')) : d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); }
+  function trkHtml(o){
+    var t = trk[o.id];
+    if(!t || t.awb !== o.trackingNo) return trkBusy[o.id] ? '<div class="muted" style="margin-top:8px">Checking live status…</div>' : '';
+    var L = TRK[t.tag] || [t.tag || 'Status', ''], last = (t.checkpoints || [])[0];
+    return '<div style="margin-top:10px"><span class="chip ' + L[1] + '">' + esc(L[0]) + '</span>' + (t.eta && t.tag !== 'Delivered' ? ' <span class="muted">· expected ' + fmtDate(t.eta) + '</span>' : '') +
+      (last ? '<div style="margin-top:6px"><b>' + esc(last.msg || t.subtag_message || '') + '</b><div class="muted">' + esc(last.loc || '') + (last.loc ? ' · ' : '') + trkTime(last.time) + '</div></div>' : (t.subtag_message ? '<div class="muted" style="margin-top:6px">' + esc(t.subtag_message) + '</div>' : '')) +
+      ((t.checkpoints || []).length > 1 ? '<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">All updates (' + t.checkpoints.length + ')</summary>' + t.checkpoints.map(function(c){
+        return '<div class="row" style="align-items:flex-start"><span>' + esc(c.msg || '') + '<div class="muted">' + esc(c.loc || '') + '</div></span><span class="r muted" style="font-weight:500;white-space:nowrap">' + trkTime(c.time) + '</span></div>';
+      }).join('') + '</details>' : '') +
+      '<div class="muted" style="margin-top:6px;font-size:12px">Updated ' + ago(t.fetched_at) + (t.tag !== 'Delivered' ? ' · <button class="link" style="padding:0;font-size:12px" data-a="trk-refresh" data-id="' + esc(o.id) + '">Refresh</button>' : '') + '</div></div>';
+  }
+  async function liveTrack(id, force){
+    var o = pack().orders.find(function(x){ return x.id === id; });
+    if(!o || !o.trackingNo || !sb || !session || trkBusy[id]) return;
+    trkBusy[id] = true; paintTrk(o);
+    try{
+      var r = await sb.functions.invoke('track-parcel', { body: { orderId: id, force: !!force } });
+      if(r.data && r.data.tracking) trk[id] = r.data.tracking;
+    }catch(e){}
+    trkBusy[id] = false; paintTrk(o);
+  }
+  function paintTrk(o){
+    var box = document.getElementById('trkBox');
+    if(box && box.getAttribute('data-id') === o.id) box.innerHTML = trkHtml(o);
+    var a = document.getElementById('trkLink');
+    if(a && trk[o.id] && trk[o.id].tracking_url && /^https:\/\//.test(trk[o.id].tracking_url)) a.href = trk[o.id].tracking_url;
+  }
   // Courier tracking pages; anything else falls back to a web search for the AWB.
   function trackUrl(o){
     var no = encodeURIComponent(o.trackingNo || ''), c = (o.courier || '').toLowerCase();
     if(/delhivery/.test(c)) return 'https://www.delhivery.com/track/package/' + no;
     if(/shiprocket/.test(c)) return 'https://shiprocket.co/tracking/' + no;
     if(/blue ?dart/.test(c)) return 'https://www.bluedart.com/web/guest/trackdartresult?trackFor=0&trackNo=' + no;
+    if(trk[o.id] && trk[o.id].tracking_url && /^https:\/\//.test(trk[o.id].tracking_url)) return trk[o.id].tracking_url;
     return 'https://www.google.com/search?q=' + encodeURIComponent((o.courier || 'courier') + ' tracking ' + (o.trackingNo || ''));
   }
   function shipLine(o){
@@ -1532,7 +1576,8 @@
         (o.shippedDate ? '<div class="row"><span class="muted">Dispatched</span><span class="r">' + fmtDate(o.shippedDate) + '</span></div>' : '') +
         (o.courier ? '<div class="row"><span class="muted">Courier</span><span class="r">' + esc(o.courier) + '</span></div>' : '') +
         (o.trackingNo ? '<div class="row"><span class="muted">Tracking / AWB</span><span class="r">' + esc(o.trackingNo) + '</span></div>' +
-          '<div class="btns"><a class="btn primary small" href="' + esc(trackUrl(o)) + '" target="_blank" rel="noopener">Track shipment</a><button class="btn small" data-a="copy-awb" data-v="' + esc(o.trackingNo) + '">Copy AWB</button></div>' : '') +
+          '<div id="trkBox" data-id="' + esc(o.id) + '">' + trkHtml(o) + '</div>' +
+          '<div class="btns"><a class="btn primary small" id="trkLink" href="' + esc(trackUrl(o)) + '" target="_blank" rel="noopener">Courier page</a><button class="btn small" data-a="copy-awb" data-v="' + esc(o.trackingNo) + '">Copy AWB</button></div>' : '') +
         '</div>' : '') +
       '<div class="card"><div class="row"><span class="muted">Ordered</span><span class="r">' + (fmtDate(o.orderedDate) || '—') + '</span></div>' +
       (o.dueDate ? '<div class="row"><span class="muted">Due</span><span class="r">' + fmtDate(o.dueDate) + '</span></div>' : '') +
@@ -1541,7 +1586,7 @@
       '<div class="row"><span class="muted">Payment</span><span class="r">' + esc(PAY[o.paymentStatus] || o.paymentStatus) + (o.due ? ' · ' + money2(o.due) + ' due' : '') + '</span></div></div>' +
       '<div class="btns">' + (o.invoiceNumber ? '<button class="btn" data-a="tt-invoice" data-id="' + esc(o.id) + '">View invoice ' + esc(o.invoiceNumber) + '</button>' : '') +
       (canReorder ? '<button class="btn primary" data-a="reorder" data-id="' + esc(o.id) + '">Reorder</button>' : '') +
-      (['production_done', 'shipped', 'delivered'].indexOf(o.status) !== -1 ? '<button class="btn" data-a="claim" data-id="' + esc(o.id) + '">Report a problem</button>' : '') + '</div>');
+      (['production_done', 'shipped', 'delivered'].indexOf(o.status) !== -1 ? '<button class="btn" data-a="claim" data-id="' + esc(o.id) + '">Report a problem</button>' : '') + '</div>');    if(o.trackingNo && o.status !== 'delivered') liveTrack(o.id);
   }
   // ======================= damage / replacement claims =======================
   var ISSUES = { broken: 'Broken', missing: 'Missing pieces', colour: 'Wrong colour', defect: 'Print defect', other: 'Other' };
@@ -2255,6 +2300,7 @@
     else if(act === 'export') exportSheet();
     else if(act === 'export-register') exportRegister();
     else if(act === 'export-hsn') exportHsn();
+    else if(act === 'trk-refresh') liveTrack(id, true);
     else if(act === 'copy-awb'){ var awb = a.getAttribute('data-v'); (navigator.clipboard ? navigator.clipboard.writeText(awb) : Promise.reject()).then(function(){ toast('Copied ' + awb); }).catch(function(){ prompt('AWB', awb); }); }
     else if(act === 'send-claim') sendClaim(id);
     else if(act === 'del-photo'){ claimPhotos.splice(+a.getAttribute('data-i'), 1); addClaimPhotos([]); }
