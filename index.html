@@ -2036,7 +2036,7 @@
       [['Business', c.name], ['Contact', c.contact], ['Phone', c.phone], ['Email', c.email], ['GSTIN', c.gstin], ['Address', [c.address, c.city, c.state].filter(Boolean).join(', ')]].map(function(r){
         return '<div class="row"><span class="muted">' + r[0] + '</span><span class="r" style="white-space:normal">' + esc(r[1] || '—') + '</span></div>';
       }).join('') + '<div class="btns"><button class="btn small" data-a="edit-profile">Request a change</button><button class="btn small" data-a="message">Message Thread Tribe</button></div></div>' +
-      '<p class="muted" style="margin:14px 4px 0">Your customers, invoices and selling prices are private to you. Thread Tribe only sees how many of each toy you resell, by city.</p>' +
+      '<p class="muted" style="margin:14px 4px 0">Your customers, invoices and selling prices are private to you. Thread Tribe only sees how many of each toy you sell on, by city.</p>' +
       '<div class="btns"><button class="btn small danger" data-a="signout">Sign out</button></div>';
   }
   function profileSheet(){
