@@ -582,7 +582,7 @@
     if(store.clientId && store.clientId !== row.client_id){ store.cart = []; store.docs = blankDocs(); store.pending = []; }
     store.clientId = row.client_id; store.pack = row.pack;
     cloud.status = 'ok';
-    await Promise.all([loadRequests(), loadDocs()]);
+    await Promise.all([loadRequests(), loadDocs(), loadProjects().catch(function(){})]);
     store.cart = store.cart.filter(function(l){ return product(l.productId); });
     save();
     if(prev) notifyChanges(prev, row.pack);
@@ -936,6 +936,7 @@
     var low = lowStock();
     if(low.length) out.push({ ic: '⚠️', cls: 'warn', t: low.length + ' toy' + (low.length === 1 ? '' : 's') + ' running low', s: low.slice(0, 3).map(function(r){ return r.name + ' (' + r.onHand + ')'; }).join(', '), go: 'stock' });
     if(!cloud.bizMissing && !settings().stockStart) out.push({ ic: '📦', cls: 'info', t: 'Track your stock', s: 'Know what you have and get low-stock warnings', go: 'stock' });
+    pjbWaiting().forEach(function(x){ out.push({ ic: '🎨', cls: 'good', t: 'New prototype: ' + ((x.p.data || {}).title || 'custom design'), s: 'Tap to review and approve', a: 'project', id: x.p.id }); });
     var waiting = openRequests().length;
     if(waiting) out.push({ ic: '⏳', cls: '', t: waiting + ' request' + (waiting === 1 ? '' : 's') + ' with Thread Tribe', s: 'They’ll reply here', go: 'orders', seg: 'requests' });
     if(totalDue() > 0) out.push({ ic: '🧾', cls: '', t: money(totalDue()) + ' due to Thread Tribe', s: 'Pay on delivery', go: 'account' });
@@ -1058,7 +1059,7 @@
     });
     collectionsLive().forEach(function(c){ out.push({ ic: '🎁', cls: 'good', t: c.name, s: (c.items || []).length + ' toys' + (c.note ? ' · ' + c.note : ''), a: 'open-seg', v: 'col:' + c.id }); });
     // urgency: shipments and money first, then stock and replies, then the rest
-    var rank = { '🚚': 1, '📦': 2, '💰': 3, '⚠️': 4, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
+    var rank = { '🎨': 1, '🚚': 1, '📦': 2, '💰': 3, '⚠️': 4, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
     out.forEach(function(x){ if(x.t === 'Track your stock') x.ic2 = 1; });
     return out.sort(function(a, b){ return (rank[a.ic] || 9) - (rank[b.ic] || 9); });
   }
@@ -1492,8 +1493,10 @@
     var items = orderSeg === 'active' ? active : orderSeg === 'past' ? past : null;
     return '<div class="seg"><button data-oseg="active" class="' + (orderSeg === 'active' ? 'on' : '') + '">Active<span class="n">' + active.length + '</span></button>' +
       '<button data-oseg="past" class="' + (orderSeg === 'past' ? 'on' : '') + '">Past<span class="n">' + past.length + '</span></button>' +
-      '<button data-oseg="requests" class="' + (orderSeg === 'requests' ? 'on' : '') + '">Requests<span class="n">' + reqs.length + '</span></button></div>' +
-      (items ? (items.length ? items.map(orderItem).join('') : '<div class="card empty"><b>Nothing here yet</b></div>')
+      '<button data-oseg="requests" class="' + (orderSeg === 'requests' ? 'on' : '') + '">Requests<span class="n">' + reqs.length + '</span></button>' +
+      (pjb.list.length ? '<button data-oseg="custom" class="' + (orderSeg === 'custom' ? 'on' : '') + '">Custom designs<span class="n">' + pjb.list.length + '</span></button>' : '') + '</div>' +
+      (orderSeg === 'custom' ? (pjb.list.length ? pjb.list.map(projectItem).join('') : '<div class="card empty"><b>No custom designs</b></div>') :
+       items ? (items.length ? items.map(orderItem).join('') : '<div class="card empty"><b>Nothing here yet</b></div>')
              : (reqs.length ? reqs.map(requestItem).join('') : '<div class="card empty"><b>No requests yet</b></div>'));
   }
   function stepper(o){
@@ -2084,6 +2087,102 @@
     el.classList.remove('hidden');
   }
 
+  // ======================= custom design projects =======================
+  // Projects Thread Tribe designs for this brand partner (projects / project_items).
+  // Only prototype rounds Thread Tribe shares show here; the partner approves them or asks for changes.
+  var PJB = [['Design', ['pitch', 'brief', 'concept', 'cad']], ['Prototype', ['prototype']], ['Approval', ['approval']], ['Production', ['production']], ['Live', ['live']]];
+  var pjb = { list: [], items: {}, open: null, chan: null };
+  async function loadProjects(){
+    if(!sb || !session || !store.clientId) return;
+    var r = await sb.from('projects').select('id,client_id,data,updated_at').eq('client_id', store.clientId).order('updated_at', { ascending: false });
+    if(r.error){ pjb.list = []; return; }
+    pjb.list = (r.data || []).filter(function(p){ return ['pitch', 'cancelled'].indexOf((p.data || {}).stage) === -1; });
+    pjb.items = {};
+    if(pjb.list.length){
+      var it = await sb.from('project_items').select('project_id,id,kind,author,data').in('project_id', pjb.list.map(function(p){ return p.id; })).eq('deleted', false);
+      (it.data || []).forEach(function(x){ (pjb.items[x.project_id] = pjb.items[x.project_id] || []).push(x); });
+      Object.keys(pjb.items).forEach(function(k){ pjb.items[k].sort(function(a, b){ return ((a.data && a.data.at) || '').localeCompare((b.data && b.data.at) || ''); }); });
+      if(!pjb.chan){
+        try{
+          var t = null, again = function(){ clearTimeout(t); t = setTimeout(function(){ loadProjects().then(function(){ renderAll(); if(pjb.open) projectSheet(pjb.open, true); }); }, 500); };
+          pjb.chan = sb.channel('tt-pjb-' + Math.random().toString(36).slice(2, 8))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, again)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'project_items' }, again).subscribe();
+        }catch(e){}
+      }
+    }
+  }
+  function pjbItems(id, kind){ return (pjb.items[id] || []).filter(function(x){ return x.kind === kind; }); }
+  function pjbMine(pid, target){ return pjbItems(pid, 'approval').filter(function(a){ return a.author === 'client' && a.data && a.data.target === target; }).pop(); }
+  function pjbStep(st){ for(var i = 0; i < PJB.length; i++) if(PJB[i][1].indexOf(st) !== -1) return i; return 0; }
+  function pjbUrl(u){ return typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/i.test(u); }
+  function pjbImg(d){ return typeof d === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(d); }
+  // Shared prototype rounds still waiting for this partner's verdict.
+  function pjbWaiting(){
+    var out = [];
+    pjb.list.forEach(function(p){
+      var pr = pjbItems(p.id, 'proto'), last = pr[pr.length - 1];
+      if(last && !pjbMine(p.id, last.id)) out.push({ p: p, proto: last });
+    });
+    return out;
+  }
+  function projectItem(p){
+    var d = p.data || {}, w = pjbWaiting().some(function(x){ return x.p.id === p.id; });
+    return '<button class="item" data-a="project" data-id="' + esc(p.id) + '"><div class="body"><div class="t">' + esc(d.title || 'Custom design') + '</div>' +
+      '<div class="s">' + PJB[pjbStep(d.stage)][0] + (d.qty ? ' · ' + d.qty + ' pcs' : '') + (d.due ? ' · target ' + fmtDate(d.due) : '') + '</div>' +
+      (w ? '<div class="s" style="color:var(--accent);font-weight:600">New prototype to review</div>' : '') + '</div><span class="chev">›</span></button>';
+  }
+  function projectSheet(id, keep){
+    var p = pjb.list.find(function(x){ return x.id === id; }); if(!p) return;
+    var ae = document.activeElement;
+    if(keep && ae && document.getElementById('sheetBody').contains(ae) && /INPUT|TEXTAREA/.test(ae.tagName)) return;
+    pjb.open = id;
+    var d = p.data || {}, at = pjbStep(d.stage), protos = pjbItems(p.id, 'proto'), cm = pjbItems(p.id, 'comment');
+    var html = '<div class="sheet-h"><div class="t">' + esc(d.title || 'Custom design') + '</div><button class="x" data-a="close">✕</button></div>' +
+      '<div class="steps">' + PJB.map(function(s, i){ return '<div class="st ' + (i < at ? 'done' : i === at ? 'now' : '') + '"><b>' + (i < at ? '✓' : i + 1) + '</b>' + s[0] + '</div>'; }).join('') + '</div>' +
+      '<div class="muted" style="margin-top:10px">' + [d.qty ? d.qty + ' pcs' : '', d.targetPrice ? 'target ₹' + d.targetPrice + '/pc' : '', d.due ? 'target date ' + fmtDate(d.due) : ''].filter(Boolean).join(' · ') + '</div>' +
+      (d.brief ? '<div class="card" style="margin-top:10px;white-space:pre-wrap">' + esc(d.brief) + '</div>' : '');
+    html += '<div class="h2">Prototypes <span class="count">' + protos.length + '</span></div>' + (protos.length ? protos.slice().reverse().map(function(x, i){
+      var n = protos.length - i, mine = pjbMine(p.id, x.id);
+      return '<div class="card">' + (pjbImg(x.data.thumb) ? '<img src="' + x.data.thumb + '" alt="" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-bottom:8px">' : '') +
+        '<div class="row"><b>Round ' + n + '</b><span class="r muted" style="font-weight:500">' + fmtDate(x.data.at) + '</span></div>' +
+        (x.data.color ? '<div class="muted">' + esc(x.data.color) + '</div>' : '') + (x.data.notes ? '<div style="margin-top:4px">' + esc(x.data.notes) + '</div>' : '') +
+        (pjbUrl(x.data.link) ? '<a class="link" href="' + esc(x.data.link) + '" target="_blank" rel="noopener">More photos ↗</a>' : '') +
+        (mine ? '<div class="note ' + (mine.data.decision === 'approved' ? 'good' : 'warn') + '">' + (mine.data.decision === 'approved' ? '✓ You approved this' : 'You asked for changes') + (mine.data.note ? ': ' + esc(mine.data.note) : '') + '</div>'
+          : i === 0 ? '<div class="btns"><button class="btn primary small" data-a="pj-approve" data-id="' + esc(x.id) + '">Approve</button><button class="btn small" data-a="pj-changes" data-id="' + esc(x.id) + '">Ask for changes</button></div>' : '') + '</div>';
+    }).join('') : '<div class="card empty"><b>No prototypes yet</b>You’ll see each round here when it’s ready to review.</div>');
+    html += '<div class="h2">Conversation</div><div class="card">' + (cm.length ? cm.slice(-20).map(function(c){
+      var who = c.author === 'client' ? 'You' : 'Thread Tribe';
+      return '<div style="margin:0 0 10px;' + (c.author === 'client' ? 'text-align:right' : '') + '"><div class="muted" style="font-size:12px">' + who + ' · ' + fmtDate(c.data.at) + '</div><div style="white-space:pre-wrap">' + esc(c.data.text || '') + '</div></div>';
+    }).join('') : '<div class="muted">Questions or ideas? Write to the design team here.</div>') +
+      '<textarea id="pjb-msg" placeholder="Write a message" style="min-height:60px;margin-top:6px"></textarea><div class="btns"><button class="btn primary small" data-a="pj-send" data-id="' + esc(p.id) + '">Send</button></div></div>';
+    if(keep && document.getElementById('sheet').classList.contains('show')) document.getElementById('sheetBody').innerHTML = html;
+    else if(!keep) openSheet(html);
+  }
+  async function pjbAdd(kind, data){
+    var pid = pjb.open; if(!pid || !session) return false;
+    var row = { project_id: pid, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), kind: kind, author: 'client', data: Object.assign({ at: new Date().toISOString() }, data) };
+    var r = await sb.from('project_items').insert(row);
+    if(r.error){ toast(friendlyErr(r.error)); return false; }
+    (pjb.items[pid] = pjb.items[pid] || []).push(row);
+    return true;
+  }
+  async function pjbAction(act, id, a){
+    if(act === 'project'){ projectSheet(id); return; }
+    if(act === 'pj-approve'){
+      if(!confirm('Approve this prototype for production?')) return;
+      if(await pjbAdd('approval', { target: id, decision: 'approved', note: '' })){ buzz(); toast('Approved — Thread Tribe will take it to production'); }
+    } else if(act === 'pj-changes'){
+      var note = prompt('What would you like changed?'); if(!note || !note.trim()) return;
+      if(await pjbAdd('approval', { target: id, decision: 'changes', note: note.trim().slice(0, 1000) })) toast('Sent to the design team');
+    } else if(act === 'pj-send'){
+      var t = (document.getElementById('pjb-msg') || {}).value || ''; if(!t.trim()){ toast('Write a message first'); return; }
+      if(await pjbAdd('comment', { text: t.trim().slice(0, 2000) })){ document.activeElement && document.activeElement.blur && document.activeElement.blur(); toast('Sent'); }
+    }
+    a.disabled = false;
+    projectSheet(pjb.open, true); renderAll();
+  }
+
   // ======================= sheet =======================
   function openSheet(html){
     document.getElementById('sheetBody').innerHTML = html;
@@ -2092,6 +2191,7 @@
     requestAnimationFrame(function(){ s.classList.add('show'); sc.classList.add('show'); });
   }
   function closeSheet(){
+    pjb.open = null;
     var s = document.getElementById('sheet'), sc = document.getElementById('scrim');
     s.classList.remove('show'); sc.classList.remove('show');
     setTimeout(function(){ s.classList.add('hidden'); sc.classList.add('hidden'); }, 220);
@@ -2135,6 +2235,7 @@
     else if(act === 'restart'){ cloud.otpEmail = ''; cloud.err = ''; renderSignin(); }
     else if(act === 'signout'){ if(confirm('Sign out of the Thread Tribe trade app?')) signOut(); }
     else if(act === 'refresh') refresh();
+    else if(act === 'project' || act.indexOf('pj-') === 0){ await pjbAction(act, id, a); }
     else if(act === 'choose'){ store.clientId = id; cloud.choosing = null; save(); refresh(); }
     // shop & cart
     else if(act === 'product') productSheet(id);
