@@ -385,7 +385,7 @@
 <nav class="nav hidden" id="nav">
   <button data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Home</button>
   <button data-tab="shop"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Shop</button>
-  <button data-tab="orders"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Supplies</button>
+  <button data-tab="orders"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Purchases</button>
   <button data-tab="business"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Business</button>
   <button data-tab="stock"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/></svg>Stock<span class="nbadge hidden" id="stockBadge"></span></button>
 </nav>
@@ -743,7 +743,7 @@
     if(!canInstall()) return '';
     if(dismissible && store.installHideUntil && Date.now() < store.installHideUntil) return '';
     return '<div class="install"><img src="icons/icon-192.png" alt=""><div style="flex:1;min-width:0"><div class="t">Install Thread Tribe Trade</div>' +
-      '<div class="s">One tap from your home screen, works like an app, opens straight to your supplies and sales.</div>' +
+      '<div class="s">One tap from your home screen, works like an app, opens straight to your purchases and sales.</div>' +
       (install.prompt ? '<div class="btns"><button class="btn primary" data-a="install">⬇ Install app</button>' + (dismissible ? '<button class="btn small" data-a="install-later">Not now</button>' : '') + '</div>'
         : installSteps() + (dismissible ? '<div class="btns"><button class="btn small" data-a="install-later">Not now</button></div>' : '')) +
       '</div></div>';
@@ -831,7 +831,7 @@
     var navTab = tab === 'cart' ? 'shop' : tab;
     nav.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === navTab); });
     document.getElementById('eyebrow').textContent = pack().client.name || 'Thread Tribe Trade';
-    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Supplies', stock: 'Stock', business: 'Business', account: 'Account' };
+    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Purchases', stock: 'Stock', business: 'Business', account: 'Account' };
     document.getElementById('title').textContent = tab === 'home' ? greeting() + ', ' + ((pack().client.contact || pack().client.name || '').split(' ')[0] || 'there') : titles[tab];
     screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, stock: renderStock, business: renderBusiness, account: renderAccount })[tab]();
     var av = document.getElementById('avatar');
@@ -1098,7 +1098,7 @@
   function requestItem(q){
     var lines = (q.payload && q.payload.lines) || [];
     var pcs = lines.reduce(function(s, l){ return s + (l.qty || 0); }, 0);
-    var title = q.kind === 'order' ? 'Supply request · ' + pcs + ' pcs' : q.kind === 'claim' ? 'Problem with ' + ((q.payload && q.payload.displayId) || 'an order') + ' · ' + pcs + ' pcs' : q.kind === 'profile' ? 'Details change' : 'Message';
+    var title = q.kind === 'order' ? 'Purchase request · ' + pcs + ' pcs' : q.kind === 'claim' ? 'Problem with ' + ((q.payload && q.payload.displayId) || 'an order') + ' · ' + pcs + ' pcs' : q.kind === 'profile' ? 'Details change' : 'Message';
     var chip = q.status === 'open' ? '<span class="chip soon">Waiting</span>' : q.status === 'accepted' || q.status === 'done' ? '<span class="chip ok">' + (q.status === 'accepted' ? 'Confirmed' : 'Done') + '</span>' : q.status === 'declined' ? '<span class="chip bad">Declined</span>' : '<span class="chip">' + esc(q.status) + '</span>';
     return '<div class="item" style="cursor:default"><div class="body"><div class="t">' + esc(title) + '</div><div class="s">' + fmtDate(q.created_at) + (q.reply ? ' · ' + esc(q.reply) : '') + '</div></div>' + chip +
       (q.status === 'open' ? '<button class="btn small" data-a="cancel-req" data-id="' + q.id + '">Cancel</button>' : '') + '</div>';
@@ -1159,7 +1159,7 @@
   function orderItem(o){
     var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
     var chip = o.status === 'delivered' ? 'ok' : o.status === 'cancelled' ? 'bad' : o.status === 'quoted' ? '' : 'new';
-    return '<button class="item" data-a="order" data-id="' + esc(o.id) + '"><div class="body"><div class="t">' + esc(o.displayId) + ' · ' + esc(o.name || 'Supply order') + '</div>' +
+    return '<button class="item" data-a="order" data-id="' + esc(o.id) + '"><div class="body"><div class="t">' + esc(o.displayId) + ' · ' + esc(o.name || 'Purchase order') + '</div>' +
       '<div class="s">' + (o.status === 'in_production' ? made + ' of ' + qty + ' made' : qty + ' pcs') + ' · ' + money(o.total) + (o.due ? ' · ' + money(o.due) + ' due' : '') + '</div>' +
       (shipLine(o) ? '<div class="s" style="color:var(--accent);font-weight:600">' + esc(shipLine(o)) + '</div>' : '') + '</div>' +
       '<span class="chip ' + chip + '">' + esc(STATUS[o.status] || o.status) + '</span><span class="chev">›</span></button>';
@@ -1227,7 +1227,7 @@
   function renderShop(){
     var cat = catalogue(), f = store.filt, items = shopList(), n = activeFilters(), t = T();
     var hasRetail = cat.some(function(p){ return p.retail; });
-    var slabTxt = t.slabs.length ? ' Bigger supply orders get more off — mix any toys.' : '';
+    var slabTxt = t.slabs.length ? ' Bigger purchase orders get more off — mix any toys.' : '';
     return '<div class="seg"><button data-seg="all" class="' + (shopSeg === 'all' ? 'on' : '') + '">All<span class="n">' + cat.length + '</span></button>' +
       ((pack().trending || []).length ? '<button data-seg="trending" class="' + (shopSeg === 'trending' ? 'on' : '') + '">🔥 Trending</button>' : '') +
       (cat.some(isNew) ? '<button data-seg="new" class="' + (shopSeg === 'new' ? 'on' : '') + '">✨ New<span class="n">' + cat.filter(isNew).length + '</span></button>' : '') +
@@ -1492,7 +1492,7 @@
 
   // ======================= cart =======================
   function renderCart(){
-    if(!store.cart.length) return '<div class="card empty"><b>Your cart is empty</b>Add toys from the shop, or repeat a past one from Supplies.<div class="btns" style="justify-content:center;"><button class="btn primary small" data-go="shop">Open shop</button></div></div>';
+    if(!store.cart.length) return '<div class="card empty"><b>Your cart is empty</b>Add toys from the shop, or repeat a past one from Purchases.<div class="btns" style="justify-content:center;"><button class="btn primary small" data-go="shop">Open shop</button></div></div>';
     var t = T(), ct = cartTotals(), gstRate = pack().business.gstRate || 0;
     var rows = ct.lines.map(function(x, i){
       var low = x.l.qty < t.minPerProduct;
@@ -1502,7 +1502,7 @@
     }).join('');
     var gst = Math.round(ct.sub * gstRate) / 100;
     var problems = [];
-    if(ct.qty < t.minOrder) problems.push('Add ' + (t.minOrder - ct.qty) + ' more pieces — supply orders start at ' + t.minOrder + '.');
+    if(ct.qty < t.minOrder) problems.push('Add ' + (t.minOrder - ct.qty) + ' more pieces — purchase orders start at ' + t.minOrder + '.');
     if(ct.lines.some(function(x){ return x.l.qty < t.minPerProduct; })) problems.push('Each toy needs at least ' + t.minPerProduct + ' pieces.');
     return '<div class="card">' + rows + '</div>' +
       (ct.next ? '<div class="note info">Add <b>' + ct.next.need + ' more pieces</b> of any toys to get <b>' + ct.next.pct + '% off</b> the whole order.</div>' : '') +
@@ -1513,8 +1513,8 @@
       (problems.length ? '<div class="note warn">' + problems.join(' ') + '</div>' : '') +
       '<label>Your reference (optional)</label><input id="cref" maxlength="60" placeholder="e.g. PO number or store name">' +
       '<label>Notes for Thread Tribe (optional)</label><textarea id="cnotes" maxlength="1000" placeholder="Delivery date, colour mix, packing…"></textarea>' +
-      '<div class="note info">Thread Tribe confirms every supply order before production starts and tells you the delivery date. Prices are checked again at confirmation.</div>' +
-      '<div class="btns"><button class="btn primary block" data-a="place"' + (cloud.sending || problems.length ? ' disabled' : '') + '>Send supply request</button></div>';
+      '<div class="note info">Thread Tribe confirms every purchase order before production starts and tells you the delivery date. Prices are checked again at confirmation.</div>' +
+      '<div class="btns"><button class="btn primary block" data-a="place"' + (cloud.sending || problems.length ? ' disabled' : '') + '>Send purchase request</button></div>';
   }
   async function placeOrder(){
     var t = T(), ct = cartTotals();
@@ -1526,7 +1526,7 @@
       reference: val('cref'), notes: val('cnotes'), totalQty: ct.qty, discountPct: ct.pct, total: ct.sub, reorderOf: store.reorderOf || ''
     });
     cloud.sending = false;
-    if(ok){ store.cart = []; store.reorderOf = ''; save(); tab = 'home'; toast('Supply request sent'); }
+    if(ok){ store.cart = []; store.reorderOf = ''; save(); tab = 'home'; toast('Purchase request sent'); }
     renderAll();
   }
 
@@ -1564,7 +1564,7 @@
   function orderSheet(id){
     var o = pack().orders.find(function(x){ return x.id === id; }); if(!o) return;
     var canReorder = o.lines.some(function(l){ return l.catalogId && product(l.catalogId); });
-    openSheet('<div class="sheet-h"><div><div class="muted">' + esc(o.displayId) + '</div><div class="t">' + esc(o.name || 'Supply order') + '</div></div><button class="x" data-a="close">✕</button></div>' +
+    openSheet('<div class="sheet-h"><div><div class="muted">' + esc(o.displayId) + '</div><div class="t">' + esc(o.name || 'Purchase order') + '</div></div><button class="x" data-a="close">✕</button></div>' +
       '<span class="chip ' + (o.status === 'delivered' ? 'ok' : o.status === 'cancelled' ? 'bad' : 'new') + '">' + esc(STATUS[o.status] || o.status) + '</span>' +
       stepper(o) + productionBox(o) +
       '<div class="h2">Items</div><div class="card">' + o.lines.map(function(l){
@@ -2035,7 +2035,7 @@
     if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on stock for your account.</div>';
     var s = settings();
     if(!s.stockStart) return '<div class="card stock-intro"><div style="font-size:34px">📦</div><b>Know what you have, without counting</b>' +
-      '<p class="muted" style="margin-top:6px">Stock goes up when a Thread Tribe supply is delivered and down when you invoice a buyer. You get a warning before a toy runs out, and one tap to reorder it.</p>' +
+      '<p class="muted" style="margin-top:6px">Stock goes up when a Thread Tribe purchase is delivered and down when you invoice a buyer. You get a warning before a toy runs out, and one tap to reorder it.</p>' +
       '<p class="muted">Start today, then enter what you have on hand right now.</p>' +
       '<div class="btns"><button class="btn primary block" data-a="start-stock">Start tracking my stock</button></div></div>';
     var rows = stockRows(), lim = num(s.lowStock), q = stockQuery.toLowerCase();
@@ -2073,7 +2073,7 @@
   // ======================= account =======================
   function renderAccount(){
     var p = pack(), c = p.client, invoices = p.orders.filter(function(o){ return o.invoiceNumber; }), due = p.orders.filter(function(o){ return o.due > 0; });
-    return installCard(false) + '<div class="card big"><div class="k">You owe Thread Tribe</div><div class="v">' + money(totalDue()) + '</div><div class="muted">across ' + due.length + ' supply order' + (due.length === 1 ? '' : 's') + ' · pay on delivery</div></div>' +
+    return installCard(false) + '<div class="card big"><div class="k">You owe Thread Tribe</div><div class="v">' + money(totalDue()) + '</div><div class="muted">across ' + due.length + ' purchase order' + (due.length === 1 ? '' : 's') + ' · pay on delivery</div></div>' +
       (due.length ? '<div class="card">' + due.map(function(o){ return '<div class="row"><span>' + esc(o.displayId) + ' · ' + esc(PAY[o.paymentStatus] || '') + '</span><span class="r">' + money2(o.due) + '</span></div>'; }).join('') + '</div>' : '') +
       '<div class="h2">Thread Tribe invoices <span class="count">' + invoices.length + '</span></div>' +
       (invoices.length ? '<div class="card">' + invoices.map(function(o){
@@ -2108,7 +2108,7 @@
   }
   function messageSheet(){
     openSheet('<div class="sheet-h"><div class="t">Message Thread Tribe</div><button class="x" data-a="close">✕</button></div>' +
-      '<textarea id="msg" maxlength="2000" placeholder="Question about a supply order, a toy, delivery…"></textarea>' +
+      '<textarea id="msg" maxlength="2000" placeholder="Question about a purchase order, a toy, delivery…"></textarea>' +
       '<div class="btns"><button class="btn primary block" data-a="send-msg">Send</button></div>');
   }
   function showTTInvoice(id){
