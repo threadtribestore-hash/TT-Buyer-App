@@ -685,7 +685,9 @@
       o.lines.forEach(function(l){ if(l.catalogId) row(l.catalogId, l.name).inQty += l.qty; });
     });
     list('invoices').forEach(function(inv){
+      // Only invoices raised after tracking began; ones from earlier that same day were already in the opening count.
       if(inv.status === 'cancelled' || (inv.date || '') < start) return;
+      if(inv.date === start && s.stockStartAt && (inv.createdAt || '') < s.stockStartAt) return;
       (inv.lines || []).forEach(function(l){ if(l.productId) row(l.productId, l.name).outQty += num(l.qty); });
     });
     list('stock').forEach(function(m){ if(m.productId) row(m.productId, m.name).adj += num(m.qty); });
@@ -911,6 +913,7 @@
     invoice: '<svg viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg>',
     restock: '<svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11h11L21 7H7"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/></svg>',
     share: '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
+    catalog: '<svg viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
     collect: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>'
   };
   function greeting(){ var h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
@@ -957,7 +960,7 @@
     html += '<div class="qa">' +
       (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>New invoice</button>' : '') +
       '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>' +
-      '<button data-a="share-catalog"><span class="qi">' + ICONS.share + '</span>Share</button>' +
+      '<button data-a="share-catalog"><span class="qi">' + ICONS.catalog + '</span>Catalogue</button>' +
       (biz ? '<button data-a="home-collect"><span class="qi">' + ICONS.collect + (dueCount ? '<b class="qb">' + dueCount + '</b>' : '') + '</span>Collect</button>' : '') +
       '</div>';
     // what needs me (fits the screen; the rest behind "+N more")
@@ -1293,7 +1296,7 @@
     if(!settings().stockStart) return '';
     var oh = onHand(p.id);
     if(oh === null) return '';
-    return '<div class="stag' + (oh <= num(settings().lowStock) ? ' low' : '') + '">You have ' + oh + '</div>';
+    return '<div class="stag' + (oh <= num(settings().lowStock) ? ' low' : '') + '">' + (oh <= 0 ? 'Out of stock' : 'You have ' + oh) + '</div>';
   }
   function filterSheet(){
     var f = store.filt;
@@ -2200,7 +2203,7 @@
       toast('Customer saved');
     }
     else if(act === 'del-customer'){ if(confirm('Delete this customer? Their past invoices stay.')){ remove('customers', id); closeSheet(); renderAll(); } }
-    else if(act === 'start-stock'){ saveSettings({ stockStart: today() }); renderAll(); adjustSheet(); toast('Add what you have on hand today'); }
+    else if(act === 'start-stock'){ saveSettings({ stockStart: today(), stockStartAt: new Date().toISOString() }); renderAll(); adjustSheet(); toast('Add what you have on hand today'); }
     else if(act === 'adjust-stock') adjustSheet();
     else if(act === 'adj-one') adjustSheet(id, +a.getAttribute('data-sign'));
     else if(act === 'stock-low'){ stockQuery = ''; var lim2 = num(settings().lowStock); toast(lowStock().length ? 'Low toys are at the top' : 'Nothing is running low'); window.scrollTo(0, 0); void lim2; }
