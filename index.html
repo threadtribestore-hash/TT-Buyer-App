@@ -1537,8 +1537,9 @@
     return '<div class="seg"><button data-oseg="active" class="' + (orderSeg === 'active' ? 'on' : '') + '">Active<span class="n">' + active.length + '</span></button>' +
       '<button data-oseg="past" class="' + (orderSeg === 'past' ? 'on' : '') + '">Past<span class="n">' + past.length + '</span></button>' +
       '<button data-oseg="requests" class="' + (orderSeg === 'requests' ? 'on' : '') + '">Requests<span class="n">' + reqs.length + '</span></button>' +
-      (pjb.list.length ? '<button data-oseg="custom" class="' + (orderSeg === 'custom' ? 'on' : '') + '">Custom designs<span class="n">' + pjb.list.length + '</span></button>' : '') + '</div>' +
-      (orderSeg === 'custom' ? (pjb.list.length ? pjb.list.map(projectItem).join('') : '<div class="card empty"><b>No custom designs</b></div>') :
+      '<button data-oseg="custom" class="' + (orderSeg === 'custom' ? 'on' : '') + '">Custom designs<span class="n">' + pjb.list.length + '</span></button></div>' +
+      (orderSeg === 'custom' ? '<button class="btn primary block" data-a="pj-request" style="margin-bottom:12px">＋ Request a custom design</button>' +
+        (pjb.list.length ? pjb.list.map(projectItem).join('') : '<div class="card empty"><b>No custom designs yet</b>Have an idea for your market? Send us a description and reference photos and our designers will make it.</div>') :
        items ? (items.length ? items.map(orderItem).join('') : '<div class="card empty"><b>Nothing here yet</b></div>')
              : (reqs.length ? reqs.map(requestItem).join('') : '<div class="card empty"><b>No requests yet</b></div>'));
   }
@@ -2134,6 +2135,7 @@
   // ======================= custom design projects =======================
   // Projects Thread Tribe designs for this brand partner (projects / project_items):
   // where it is, what's done, and an update thread with the design team.
+  var PJB_REQ = 'request';
   var PJB = [['brief', 'Brief'], ['design', 'Design'], ['prototype', 'Prototype'], ['approval', 'Approval'], ['live', 'Live']];
   var PJB_OLD = { pitch: 'brief', concept: 'design', cad: 'design', production: 'approval' };
   var pjb = { list: [], items: {}, open: null, chan: null };
@@ -2145,7 +2147,7 @@
     pjb.list = (r.data || []).filter(function(p){ return pjbSt(p) !== 'cancelled'; });
     pjb.items = {};
     if(pjb.list.length){
-      var it = await sb.from('project_items').select('project_id,id,kind,author,data').in('project_id', pjb.list.map(function(p){ return p.id; })).in('kind', ['task', 'comment']).eq('deleted', false);
+      var it = await sb.from('project_items').select('project_id,id,kind,author,data').in('project_id', pjb.list.map(function(p){ return p.id; })).in('kind', ['task', 'comment', 'image']).eq('deleted', false);
       (it.data || []).forEach(function(x){ (pjb.items[x.project_id] = pjb.items[x.project_id] || []).push(x); });
       Object.keys(pjb.items).forEach(function(k){ pjb.items[k].sort(function(a, b){ return ((a.data && a.data.at) || '').localeCompare((b.data && b.data.at) || ''); }); });
       if(!pjb.chan){
@@ -2162,11 +2164,11 @@
     var l = (pjb.items[id] || []).filter(function(x){ return x.kind === kind; });
     return kind === 'task' ? l.sort(function(a, b){ return (a.data.due || '9999').localeCompare(b.data.due || '9999') || ((a.data.at || '').localeCompare(b.data.at || '')); }) : l;
   }
-  function pjbStage(st){ var s = PJB.find(function(x){ return x[0] === st; }); return s ? s[1] : st === 'on_hold' ? 'On hold' : st; }
+  function pjbStage(st){ if(st === PJB_REQ) return 'Requested'; var s = PJB.find(function(x){ return x[0] === st; }); return s ? s[1] : st === 'on_hold' ? 'On hold' : st; }
   function projectItem(p){
     var d = p.data || {}, ts = pjbItems(p.id, 'task'), done = ts.filter(function(t){ return t.data.done; }).length;
     return '<button class="item" data-a="project" data-id="' + esc(p.id) + '"><div class="body"><div class="t">' + esc(d.title || 'Custom design') + '</div>' +
-      '<div class="s">' + pjbStage(pjbSt(p)) + (ts.length ? ' · ' + done + ' of ' + ts.length + ' steps done' : '') + (d.due ? ' · target ' + fmtDate(d.due) : '') + '</div></div><span class="chev">›</span></button>';
+      '<div class="s">' + (pjbSt(p) === PJB_REQ ? 'Requested · Thread Tribe is reviewing it' : pjbStage(pjbSt(p))) + (ts.length ? ' · ' + done + ' of ' + ts.length + ' steps done' : '') + (d.due ? ' · target ' + fmtDate(d.due) : '') + '</div></div><span class="chev">›</span></button>';
   }
   function projectSheet(id, keep){
     var p = pjb.list.find(function(x){ return x.id === id; }); if(!p) return;
@@ -2175,9 +2177,11 @@
     pjb.open = id;
     var d = p.data || {}, st = pjbSt(p), at = PJB.findIndex(function(s){ return s[0] === st; }), ts = pjbItems(p.id, 'task'), cm = pjbItems(p.id, 'comment');
     var html = '<div class="sheet-h"><div class="t">' + esc(d.title || 'Custom design') + '</div><button class="x" data-a="close">✕</button></div>' +
-      (at >= 0 ? '<div class="steps">' + PJB.map(function(s, i){ return '<div class="st ' + (i < at ? 'done' : i === at ? 'now' : '') + '"><b>' + (i < at ? '✓' : i + 1) + '</b>' + s[1] + '</div>'; }).join('') + '</div>' : '<div class="note warn">' + pjbStage(st) + '</div>') +
+      (st === PJB_REQ ? '<div class="note info">Thread Tribe is reviewing your request. They’ll reply here and start the design once it’s accepted.</div>' :
+       at >= 0 ? '<div class="steps">' + PJB.map(function(s, i){ return '<div class="st ' + (i < at ? 'done' : i === at ? 'now' : '') + '"><b>' + (i < at ? '✓' : i + 1) + '</b>' + s[1] + '</div>'; }).join('') + '</div>' : '<div class="note warn">' + pjbStage(st) + '</div>') +
+      ([d.qty ? d.qty + ' pcs' : '', d.targetPrice ? 'target ₹' + d.targetPrice + '/pc' : ''].filter(Boolean).length ? '<div class="muted" style="margin-top:10px">' + [d.qty ? d.qty + ' pcs' : '', d.targetPrice ? 'target ₹' + d.targetPrice + '/pc' : ''].filter(Boolean).join(' · ') + '</div>' : '') +
       (d.due ? '<div class="muted" style="margin-top:10px">Target date ' + fmtDate(d.due) + '</div>' : '') +
-      (d.brief ? '<div class="card" style="margin-top:10px;white-space:pre-wrap">' + esc(d.brief) + '</div>' : '');
+      (d.brief ? '<div class="card" style="margin-top:10px;white-space:pre-wrap">' + esc(d.brief) + '</div>' : '') + pjbRefs(p);
     if(ts.length) html += '<div class="h2">Progress <span class="count">' + ts.filter(function(t){ return t.data.done; }).length + '/' + ts.length + '</span></div><div class="card">' + ts.map(function(t){
       return '<div class="row"><span style="' + (t.data.done ? 'color:var(--dim);text-decoration:line-through' : '') + '">' + (t.data.done ? '✓ ' : '○ ') + esc(t.data.title) + '</span><span class="r muted" style="font-weight:500">' + (t.data.due ? fmtDate(t.data.due) : '') + '</span></div>';
     }).join('') + '</div>';
@@ -2189,8 +2193,86 @@
     if(keep && !document.getElementById('sheet').classList.contains('hidden')) document.getElementById('sheetBody').innerHTML = html;
     else if(!keep) openSheet(html);
   }
+  function pjbImg(d){ return typeof d === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(d); }
+  function pjbUrl(u){ return typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/i.test(u); }
+  function pjbRefs(p){
+    var imgs = pjbItems(p.id, 'image').filter(function(x){ return pjbImg(x.data && x.data.img); }), refs = ((p.data || {}).refs || []).filter(pjbUrl);
+    if(!imgs.length && !refs.length) return '';
+    return '<div class="h2">References</div>' + (imgs.length ? '<div class="thumbs">' + imgs.map(function(x){ return '<div class="thumb" data-a="pj-zoom" style="cursor:zoom-in"><img src="' + x.data.img + '" alt=""></div>'; }).join('') + '</div>' : '') +
+      refs.map(function(u){ return '<div><a class="link" href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u.replace(/^https?:\/\//, '').slice(0, 50)) + ' ↗</a></div>'; }).join('');
+  }
+  // ---- brand partner requests a custom design ----
+  var cdPhotos = [];
+  function customSheet(){
+    cdPhotos = [];
+    openSheet('<div class="sheet-h"><div class="t">Request a custom design</div><button class="x" data-a="close">✕</button></div>' +
+      '<p class="muted">Share your idea with Thread Tribe’s design team — a sketch, a photo of something you like, or a link. They’ll reply here.</p>' +
+      '<label>What should we make?</label><input id="cd-title" maxlength="120" placeholder="e.g. Ganesha fidget clicker">' +
+      '<label>Describe it</label><textarea id="cd-brief" maxlength="3000" placeholder="Size, colours, who buys it, what makes it special…"></textarea>' +
+      '<label>Reference photos (up to 4)</label><input id="cd-photos" type="file" accept="image/*" multiple><div id="cd-thumbs" class="thumbs"></div>' +
+      '<label>Reference links (optional, one per line)</label><textarea id="cd-refs" style="min-height:60px" placeholder="https://"></textarea>' +
+      '<div class="grid2"><div><label>Quantity</label><input id="cd-qty" type="number" inputmode="numeric" min="0" placeholder="e.g. 500"></div><div><label>Target price / pc (₹)</label><input id="cd-price" type="number" inputmode="decimal" min="0" placeholder="optional"></div></div>' +
+      '<label>Needed by (optional)</label><input id="cd-due" type="date" min="' + iso(new Date()) + '">' +
+      '<div class="btns"><button class="btn primary block" data-a="pj-request-send">Send to Thread Tribe</button></div>');
+  }
+  // A reference photo is stored with the project, so keep each one well under 200 KB.
+  function cdShrink(file){
+    return new Promise(function(resolve){
+      var fr = new FileReader();
+      fr.onload = function(){
+        var img = new Image();
+        img.onload = function(){
+          var side = 1000, q = 0.7, d = '';
+          do{
+            var sc = Math.min(1, side / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+            cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+            cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+            d = cv.toDataURL('image/jpeg', q);
+            if(q > 0.45) q -= 0.1; else side = Math.round(side * 0.8);
+          } while(d.length > 150000 && side > 300);
+          resolve(d.length <= 180000 ? d : '');
+        };
+        img.onerror = function(){ resolve(''); };
+        img.src = fr.result;
+      };
+      fr.onerror = function(){ resolve(''); };
+      fr.readAsDataURL(file);
+    });
+  }
+  async function addCdPhotos(files){
+    for(var i = 0; i < files.length && cdPhotos.length < 4; i++){ var d = await cdShrink(files[i]); if(d) cdPhotos.push(d); }
+    var t = document.getElementById('cd-thumbs');
+    if(t) t.innerHTML = cdPhotos.map(function(d, i){ return '<div class="thumb"><img src="' + d + '" alt=""><button class="x" data-a="pj-del-photo" data-i="' + i + '">✕</button></div>'; }).join('');
+    if(files.length + cdPhotos.length > 4) toast('Up to 4 photos');
+  }
+  async function sendCustom(a){
+    var title = (val('cd-title') || '').trim(), brief = (val('cd-brief') || '').trim();
+    if(!title){ toast('Give your idea a name'); return; }
+    if(!brief && !cdPhotos.length){ toast('Describe it or add a reference photo'); return; }
+    a.disabled = true;
+    var id = 'pj' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), now = new Date().toISOString();
+    var proj = { id: id, client_id: store.clientId, designer_id: null, created_by: 'client', data: { title: title.slice(0, 120), stage: PJB_REQ, brief: brief.slice(0, 3000), clientName: pack().client.name || '',
+      refs: (val('cd-refs') || '').split('\n').map(function(x){ return x.trim(); }).filter(pjbUrl).slice(0, 10), qty: Math.round(num(val('cd-qty'))) || 0, targetPrice: num(val('cd-price')) || 0, due: val('cd-due') || '', createdAt: now } };
+    var r = await sb.from('projects').insert(proj);
+    if(r.error){ a.disabled = false; toast(/violates|policy|check constraint/i.test(r.error.message || '') ? 'Custom requests aren’t switched on yet — ask Thread Tribe' : friendlyErr(r.error)); return; }
+    var failed = 0;
+    for(var i = 0; i < cdPhotos.length; i++){
+      var ri = await sb.from('project_items').insert({ project_id: id, id: 'img' + i + Date.now().toString(36), kind: 'image', author: 'client', data: { img: cdPhotos[i], at: now } });
+      if(ri.error) failed++;
+    }
+    cdPhotos = [];
+    ping('request');
+    await loadProjects();
+    closeSheet(); tab = 'orders'; orderSeg = 'custom'; renderAll(); window.scrollTo(0, 0);
+    toast(failed ? 'Request sent, but ' + failed + ' photo' + (failed === 1 ? '' : 's') + ' didn’t upload' : 'Sent — Thread Tribe will reply here');
+    setTimeout(function(){ projectSheet(id); }, 250);
+  }
   async function pjbAction(act, id, a){
     if(act === 'project'){ projectSheet(id); return; }
+    if(act === 'pj-request'){ customSheet(); return; }
+    if(act === 'pj-request-send'){ await sendCustom(a); return; }
+    if(act === 'pj-del-photo'){ cdPhotos.splice(+a.getAttribute('data-i'), 1); addCdPhotos([]); return; }
+    if(act === 'pj-zoom'){ var im = a.querySelector('img'); if(im) openSheet('<div class="sheet-h"><div class="t">Reference</div><button class="x" data-a="close">✕</button></div><img src="' + im.src + '" alt="" style="width:100%;border-radius:12px">'); return; }
     if(act !== 'pj-send') return;
     var txt = ((document.getElementById('pjb-msg') || {}).value || '').trim(), pid = pjb.open;
     if(!txt){ toast('Write a message first'); return; }
@@ -2369,7 +2451,8 @@
     var t = e.target;
     if(t.id === 'sortSel'){ store.filt.sort = t.value; save(); renderAll(); }
     else if(t.id === 'kit-price'){ kit.price = t.checked; var kq = product(document.getElementById('pline').getAttribute('data-id')); if(kq) document.getElementById('kit-text').value = caption(kq); }
-    else if(t.id === 'cl-photos'){ addClaimPhotos(t.files || []); t.value = ''; }
+    else if(t.id === 'cl-photos'){ addClaimPhotos(Array.prototype.slice.call(t.files || [])); t.value = ''; }
+    else if(t.id === 'cd-photos'){ addCdPhotos(Array.prototype.slice.call(t.files || [])); t.value = ''; }
     else if(t.id === 'sh-which'){ var pk = document.getElementById('sh-pick'); if(pk) pk.classList.toggle('hidden', t.value !== 'pick'); }
     else if(t.id === 'sh-prices'){ var cw = document.getElementById('sh-custwrap'); if(cw) cw.classList.toggle('hidden', t.value !== 'cust'); }
     else if(t.id === 'd-cust'){
