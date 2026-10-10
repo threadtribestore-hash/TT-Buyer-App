@@ -1045,7 +1045,7 @@
   function attentionAll(){
     var p = pack(), out = attention();
     p.orders.filter(function(o){ return o.status === 'booked' || o.status === 'in_production'; }).forEach(function(o){
-      var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
+      var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = madeOf(o);
       out.push({ ic: '🏭', cls: 'info', t: o.displayId + ' being made · ' + (qty ? Math.round(100 * made / qty) : 0) + '%', s: made + ' of ' + qty + ' pcs' + (o.dispatchBy ? ' · ships by ' + fmtDate(o.dispatchBy) : ''), a: 'order', id: o.id, pct: qty ? made / qty : 0 });
     });
     collectionsLive().forEach(function(c){ out.push({ ic: '🎁', cls: 'good', t: c.name, s: (c.items || []).length + ' toys' + (c.note ? ' · ' + c.note : ''), a: 'open-seg', v: 'col:' + c.id }); });
@@ -1144,7 +1144,7 @@
     return '';
   }
   function orderItem(o){
-    var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
+    var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = madeOf(o);
     var chip = o.status === 'delivered' ? 'ok' : o.status === 'cancelled' ? 'bad' : o.status === 'quoted' ? '' : 'new';
     return '<button class="item" data-a="order" data-id="' + esc(o.id) + '"><div class="body"><div class="t">' + esc(o.displayId) + ' · ' + esc(o.name || 'Purchase order') + '</div>' +
       '<div class="s">' + (o.status === 'in_production' ? made + ' of ' + qty + ' made' : qty + ' pcs') + ' · ' + money(o.total) + (o.due ? ' · ' + money(o.due) + ' due' : '') + '</div>' +
@@ -1531,8 +1531,15 @@
       return '<div class="st ' + (done ? 'done' : k === i ? 'now' : '') + '"><b>' + (done ? '✓' : k + 1) + '</b>' + STATUS[s] + '</div>';
     }).join('') + '</div>';
   }
+  // Pieces made: what Studio marks as made, or the good pieces Bambuddy has finished for this
+  // order if that's higher (Studio's count is updated by hand; Bambuddy's as plates finish).
+  function madeOf(o){
+    var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), studio = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
+    var printed = o.production ? (o.production.unitsGood || 0) : 0;
+    return Math.min(qty, Math.max(studio, printed));
+  }
   function productionBox(o){
-    var p = o.production, qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
+    var p = o.production, qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = madeOf(o);
     if(['booked', 'in_production', 'production_done'].indexOf(o.status) === -1 && !p) return '';
     var cells = '<div><div class="k">Pieces made</div><div class="v">' + made + ' / ' + qty + '</div></div>';
     if(p && p.printerCount) cells += '<div><div class="k">Printers on your order</div><div class="v">' + p.printerCount + (p.printingNow ? ' <span class="muted" style="font-size:13px">· ' + p.printingNow + ' printing now</span>' : '') + '</div></div>';
