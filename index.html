@@ -1245,7 +1245,8 @@
       return true;
     });
     var by = {
-      recommended: function(a, b){ return (ordered[b.id] || 0) - (ordered[a.id] || 0) || a.name.localeCompare(b.name); },
+      // New designs first (newest at the top), then what they order most, then A–Z.
+      recommended: function(a, b){ var na = isNew(a) ? a.published : '', nb = isNew(b) ? b.published : ''; return nb.localeCompare(na) || (ordered[b.id] || 0) - (ordered[a.id] || 0) || a.name.localeCompare(b.name); },
       price_asc: function(a, b){ return (a.base || 1e9) - (b.base || 1e9); }, price_desc: function(a, b){ return (b.base || 0) - (a.base || 0); },
       margin: function(a, b){ return margin(b) - margin(a) || a.base - b.base; },
       name: function(a, b){ return a.name.localeCompare(b.name); },
