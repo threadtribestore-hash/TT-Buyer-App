@@ -519,10 +519,19 @@
     }catch(e){}
     WEB.loading = false;
   }
+  // Designs Thread Tribe adds in Studio's Shop tab (shop_products), read directly so they show
+  // straight away; Studio also puts them in the pack.
+  var SHOPX = { items: [], at: 0 };
+  async function loadShopDesigns(){
+    if(!sb || !session) return;
+    var r = await sb.from('shop_products').select('id,name,category,mrp,photos,description,weight,hours,created_at').eq('status', 'live').limit(5000);
+    if(r.error) return;
+    SHOPX.items = r.data || []; SHOPX.at = Date.now();
+  }
   var catCache = { key: '', list: [] };
   function catalogue(){
     var base = pack().catalogue.filter(function(p){ return p.kind !== 'lamp'; });
-    var key = base.length + '|' + WEB.at + '|' + (store.pack && store.pack.generatedAt);
+    var key = base.length + '|' + WEB.at + '|' + SHOPX.at + '|' + (store.pack && store.pack.generatedAt);
     if(catCache.key === key) return catCache.list;
     var byName = {}, ids = {};
     base.forEach(function(p){ byName[nameKey(p.name)] = p; ids[p.id] = 1; });
@@ -535,6 +544,12 @@
       if(ids['web:' + w.handle] || byName[nameKey(w.name)]) return;
       var mrp = Math.round(w.retail || 0);
       out.push({ id: 'web:' + w.handle, name: w.name, category: w.category, kind: /toy|clicker/i.test(w.category) ? 'toy' : 'goods', weight: 0, hours: 0, color: '', size: '', material: '', photo: w.photo, base: mrp, price: mrp, retail: mrp, onRequest: !(mrp > 0), published: w.published || '', images: w.images || [], desc: w.desc || '' });
+    });
+    SHOPX.items.forEach(function(x){
+      if(ids['sp:' + x.id] || byName[nameKey(x.name)] || out.some(function(o){ return nameKey(o.name) === nameKey(x.name); })) return;
+      var mrp = Math.round(+x.mrp || 0), ph = x.photos || [];
+      out.push({ id: 'sp:' + x.id, name: x.name, category: x.category, kind: /toy|clicker/i.test(x.category) ? 'toy' : 'goods', weight: +x.weight || 0, hours: +x.hours || 0, color: '', size: '', material: '',
+        photo: ph[0] || '', images: ph, desc: x.description || '', base: mrp, price: mrp, retail: mrp, onRequest: !(mrp > 0), published: String(x.created_at || '').slice(0, 10) });
     });
     // Every product is priced from its MRP; anything without one isn't offered.
     out = out.filter(function(p){ return p.base > 0; });
@@ -594,6 +609,7 @@
     try{
       channel = sb.channel('tt-buyer-' + Math.random().toString(36).slice(2, 8))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'buyer_packs' }, function(){ refreshSoon(250); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_products' }, function(){ refreshSoon(400); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'buyer_requests' }, function(){ refreshSoon(300); })
         .subscribe(function(st){ cloud.rtDb = st; renderSync(); });
     }catch(e){}
@@ -624,7 +640,7 @@
     if(store.clientId && store.clientId !== row.client_id){ store.cart = []; store.docs = blankDocs(); store.pending = []; }
     store.clientId = row.client_id; store.pack = row.pack;
     cloud.status = 'ok';
-    await Promise.all([loadRequests(), loadDocs(), loadProjects().catch(function(){}), loadTracking().catch(function(){})]);
+    await Promise.all([loadRequests(), loadDocs(), loadProjects().catch(function(){}), loadTracking().catch(function(){}), loadShopDesigns().catch(function(){})]);
     store.cart = store.cart.filter(function(l){ return product(l.productId); });
     save();
     if(prev) notifyChanges(prev, row.pack);
