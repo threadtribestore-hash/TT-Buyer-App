@@ -775,7 +775,7 @@
   function renderSignin(){
     var el = document.getElementById('signin');
     if(!cloud.otpEmail){
-      el.innerHTML = '<div class="signin card"><h1>Sign in</h1><p class="muted" style="font-size:15px;">Use the email you gave Thread Tribe. We’ll send you a 6-digit code — no password.</p>' +
+      el.innerHTML = '<div class="signin card"><h1>Sign in</h1>' +
         '<label>Email</label><input id="em" type="email" autocomplete="email" inputmode="email" value="' + esc(store.email || '') + '">' +
         '<div class="btns"><button class="btn primary block" data-a="send-code">Send code</button></div><div class="err">' + esc(cloud.err) + '</div></div>' +
         '<div style="max-width:420px;margin:12px auto 0">' + installCard(false) + '</div>';
@@ -1102,8 +1102,7 @@
       '<div class="stat"><div class="k">Saved with Thread Tribe</div><div class="v" style="color:var(--green)">' + money(sv.year) + '</div><div class="s">' + money(sv.month) + ' this month</div></div>' +
       '<div class="stat"><div class="k">To collect</div><div class="v">' + money(ss.receivable) + '</div><div class="s">from your buyers</div></div>' +
       '<div class="stat"><div class="k">Best buyer</div><div class="v" style="font-size:16px">' + esc(ss.topCustomers[0] ? ss.topCustomers[0][0] : '—') + '</div><div class="s">' + (ss.topCustomers[0] ? money(ss.topCustomers[0][1]) + ' earned' : '') + '</div></div></div>' +
-      '<div class="card"><div class="muted">Earned and saved by month</div>' + chart(ss.months, sv.months) + '</div>' +
-      '<p class="muted">Earned = what you billed your buyers, after your discounts and before GST, minus what those pieces cost you at your average Thread Tribe price. Saved = your trade discounts.</p>');
+      '<div class="card"><div class="muted">Earned and saved by month</div>' + chart(ss.months, sv.months) + '</div>');
   }
   // Home is one screen: size it to the space between the header and the bottom bar.
   function fitHome(){
@@ -1248,19 +1247,12 @@
   function renderShop(){
     var cat = catalogue(), f = store.filt, items = shopList(), n = activeFilters(), t = T();
     var hasRetail = cat.some(function(p){ return p.retail; });
-    var slabTxt = t.slabs.length ? ' The more of a product you order, the lower its price — down to ' + T().maxDiscount + '% off MRP.' : '';
-    return '<div class="seg"><button data-seg="all" class="' + (shopSeg === 'all' ? 'on' : '') + '">All<span class="n">' + cat.length + '</span></button>' +
-      ((pack().trending || []).length ? '<button data-seg="trending" class="' + (shopSeg === 'trending' ? 'on' : '') + '">🔥 Trending</button>' : '') +
-      (cat.some(isNew) ? '<button data-seg="new" class="' + (shopSeg === 'new' ? 'on' : '') + '">✨ New<span class="n">' + cat.filter(isNew).length + '</span></button>' : '') +
-      collectionsLive().map(function(c){ return '<button data-seg="col:' + esc(c.id) + '" class="' + (shopSeg === 'col:' + c.id ? 'on' : '') + '">' + esc(c.name) + '</button>'; }).join('') +
-      categories().map(function(c){ return '<button data-seg="' + esc(c.name) + '" class="' + (shopSeg === c.name ? 'on' : '') + '">' + esc(c.name) + '<span class="n">' + c.n + '</span></button>'; }).join('') + '</div>' +
-      (function(){ var col = /^col:/.test(shopSeg) && collectionsLive().find(function(c){ return 'col:' + c.id === shopSeg; });
-        return col ? '<div class="note info" style="margin:0 0 10px"><b>' + esc(col.name) + '</b>' + (col.note ? ' — ' + esc(col.note) : '') + (col.until ? ' · until ' + fmtDate(col.until) : '') + '</div>' : ''; })() +
+    var segLabel = shopSeg === 'all' ? '' : shopSeg === 'trending' ? '🔥 Trending' : shopSeg === 'new' ? '✨ New' : /^col:/.test(shopSeg) ? ((collectionsLive().find(function(c){ return 'col:' + c.id === shopSeg; }) || {}).name || 'Collection') : shopSeg;
+    return (segLabel ? '<div class="fchips"><button class="fchip" data-a="open-seg" data-v="all">' + esc(segLabel) + ' ✕</button></div>' : '') +
       '<input class="search" id="q" type="search" placeholder="Search products" value="' + esc(shopQuery) + '">' +
       '<div class="tools"><select id="sortSel" aria-label="Sort">' + Object.keys(SORTS).filter(function(k){ return k !== 'margin' || hasRetail; }).map(function(k){
         return '<option value="' + k + '"' + (f.sort === k ? ' selected' : '') + '>' + SORTS[k] + '</option>'; }).join('') + '</select>' +
       '<button class="btn small" data-a="filters">Filter' + (n ? ' · ' + n : '') + '</button><button class="btn small" data-a="share-catalog">Share</button></div>' + filterChips() +
-      '<p class="muted" style="margin:0 4px 10px;">' + items.length + ' product' + (items.length === 1 ? '' : 's') + ' · your price per piece at ' + t.minPerProduct + ' pcs, ex-GST. Min ' + t.minPerProduct + ' per product.' + slabTxt + '</p>' +
       (items.length ? '<div class="grid">' + (function(){ var rank = trendRank(); return items.map(function(p){
         var price = costOf(p), m = margin(p);
         return '<button class="prod" data-a="product" data-id="' + esc(p.id) + '"><div class="ph">' + badges(p, rank) + (p.photo ? '<img loading="lazy" alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
@@ -1276,7 +1268,6 @@
     var custs = list('customers').sort(function(a, b){ return (a.business || a.name || '').localeCompare(b.business || b.name || ''); });
     var shown = shopList().length, all = catalogue().length, s = settings();
     openSheet('<div class="sheet-h"><div class="t">Share a catalogue</div><button class="x" data-a="close">✕</button></div>' +
-      '<p class="muted">Goes out under <b>' + esc(s.bizName || 'your business') + '</b> with your selling prices. Your Thread Tribe price is never shown.</p>' +
       '<label>Which products</label><select id="sh-which">' +
         '<option value="shown"' + (shareOpts.which === 'shown' ? ' selected' : '') + '>The ' + shown + ' shown in the shop now</option>' +
         '<option value="all"' + (shareOpts.which === 'all' ? ' selected' : '') + '>All ' + all + ' products</option>' +
@@ -1397,7 +1388,7 @@
       '<label>Quantity (min ' + t.minPerProduct + ')</label><div class="qty"><button data-a="qty-" type="button">−</button><input id="pq" type="number" inputmode="numeric" min="' + t.minPerProduct + '" step="1" value="' + qty + '"><button data-a="qty+" type="button">+</button></div>' +
       '<div class="qchips">' + chips.map(function(v){ return '<button type="button" class="qchip" data-a="set-qty" data-v="' + v + '">' + (v >= 1000 ? (v / 1000) + 'k' : v) + '</button>'; }).join('') + '</div>' +
       '<div id="pline" class="pline" data-cartqty="' + cartQty + '" data-id="' + esc(p.id) + '"></div>' +
-      (onRequest(p) ? '' : '<div class="card"><div class="muted" style="margin-bottom:4px">Price by how many of this product you order · MRP ' + money(p.base) + '</div><table class="slabs">' +
+      (onRequest(p) ? '' : '<div class="card"><div class="muted" style="margin-bottom:4px">Bulk prices</div><table class="slabs">' +
         rows.map(function(s, i){
           var nextMin = rows[i + 1] ? rows[i + 1].min : null;
           return '<tr data-min="' + s.min + '" data-max="' + (nextMin ? nextMin - 1 : '') + '"><td>' + s.min.toLocaleString('en-IN') + (nextMin ? '–' + (nextMin - 1).toLocaleString('en-IN') : '+') + ' pcs' + (s.pct ? ' · ' + s.pct + '% off' : '') + '</td><td>' + money(priceAt(p, s.pct)) + ' / pc</td></tr>';
@@ -1533,7 +1524,6 @@
       (problems.length ? '<div class="note warn">' + problems.join(' ') + '</div>' : '') +
       '<label>Your reference (optional)</label><input id="cref" maxlength="60" placeholder="e.g. PO number or store name">' +
       '<label>Notes for Thread Tribe (optional)</label><textarea id="cnotes" maxlength="1000" placeholder="Delivery date, colour mix, packing…"></textarea>' +
-      '<div class="note info">Thread Tribe confirms every purchase order before production starts and tells you the delivery date. Prices are checked again at confirmation.</div>' +
       '<div class="btns"><button class="btn primary block" data-a="place"' + (cloud.sending || problems.length ? ' disabled' : '') + '>Send purchase request</button></div>';
   }
   async function placeOrder(){
@@ -1626,7 +1616,6 @@
     var o = pack().orders.find(function(x){ return x.id === orderId; }); if(!o) return;
     claimPhotos = [];
     openSheet('<div class="sheet-h"><div><div class="muted">' + esc(o.displayId) + '</div><div class="t">Report a problem</div></div><button class="x" data-a="close">✕</button></div>' +
-      '<p class="muted">Tell Thread Tribe which pieces had a problem. Photos help them sort it out faster.</p>' +
       '<div class="card">' + o.lines.map(function(l, i){
         return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">' + l.qty + ' pcs in this order</div></div>' +
           '<input type="number" min="0" max="' + l.qty + '" data-claim="' + i + '" placeholder="0" style="width:80px;padding:8px;text-align:center"></div>';
@@ -1740,12 +1729,12 @@
     var s = settings(), cat = catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); });
     var q = bizQuery.toLowerCase();
     var slabs = (s.custSlabs || []);
-    return '<div class="card"><b>Discounts for your buyers</b><p class="muted" style="margin-top:4px">Each customer’s own discount (set on the customer) plus these order-size discounts, capped. Applied automatically on invoices.</p>' +
+    return '<div class="card"><b>Discounts for your buyers</b>' +
       '<table class="slabs" style="margin-top:8px">' + (slabs.length ? slabs.map(function(x, i){ return '<tr><td>' + x.min + '+ pcs in an invoice</td><td>' + x.pct + '% <button class="link" style="color:var(--red);margin-left:8px" data-a="del-cslab" data-i="' + i + '">✕</button></td></tr>'; }).join('') : '<tr><td class="muted">No order-size discounts yet</td><td></td></tr>') + '</table>' +
       '<div class="grid2" style="margin-top:8px"><input id="csMin" type="number" min="1" placeholder="From pcs"><input id="csPct" type="number" min="0" max="100" step="0.5" placeholder="Discount %"></div>' +
       '<div class="btns"><button class="btn small" data-a="add-cslab">Add discount</button></div>' +
       '<label>Maximum total discount (%)</label><input id="maxCust" type="number" min="0" max="100" value="' + esc(s.maxCustDiscount) + '"></div>' +
-      '<div class="card"><b>Your selling prices</b><p class="muted" style="margin-top:4px">By default, your buying price plus your markup. Set any product’s price yourself to override.</p>' +
+      '<div class="card"><b>Your selling prices</b>' +
       '<label>Default markup (%)</label><input id="markup" type="number" min="0" value="' + esc(s.markup) + '"></div>' +
       '<input class="search" id="bq" type="search" placeholder="Search products" value="' + esc(bizQuery) + '">' +
       '<div class="card">' + cat.filter(function(p){ return !q || p.name.toLowerCase().indexOf(q) !== -1; }).map(function(p){
@@ -1753,14 +1742,13 @@
         return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(p.name) + '</div><div class="muted">you buy at ' + money(cost) + ' · margin ' + money(sell - cost) + (p.retail ? ' · MRP ' + money(p.retail) : '') + '</div></div>' +
           '<input type="number" min="0" data-sell="' + esc(p.id) + '" value="' + (custom ? o.sell : '') + '" placeholder="' + sell + '" style="width:96px;padding:8px;text-align:right"></div>';
       }).join('') + '</div>' +
-      '<div class="card"><b>Invoice details</b><p class="muted" style="margin-top:4px">Printed on every invoice you send.</p>' +
+      '<div class="card"><b>Invoice details</b>' +
       '<label>Business name</label><input id="s-bizName" value="' + esc(s.bizName) + '">' +
       '<div class="grid2"><div><label>GSTIN</label><input id="s-gstin" value="' + esc(s.gstin) + '" maxlength="15" style="text-transform:uppercase"></div><div><label>Phone</label><input id="s-phone" value="' + esc(s.phone) + '"></div></div>' +
       '<label>Address</label><textarea id="s-address">' + esc(s.address) + '</textarea>' +
       '<div class="grid2"><div><label>City</label><input id="s-city" value="' + esc(s.city) + '"></div><div><label>State</label><input id="s-state" value="' + esc(s.state) + '"></div></div>' +
       '<div class="grid2"><div><label>Invoice prefix</label><input id="s-invoicePrefix" value="' + esc(s.invoicePrefix) + '"></div><div><label>Next number</label><input id="s-nextNo" type="number" min="1" value="' + esc(s.nextNo) + '"></div></div>' +
       '<div class="grid2"><div><label>GST rate (%)</label><input id="s-gstRate" type="number" min="0" step="0.5" value="' + esc(s.gstRate) + '"></div><div><label>HSN code</label><input id="s-hsn" value="' + esc(s.hsn) + '"></div></div>' +
-      '<div class="hint">Check the GST rate and HSN code for your goods with your accountant.</div>' +
       '<label>UPI ID (shown for payment)</label><input id="s-upi" value="' + esc(s.upi) + '">' +
       '<label>Bank details</label><textarea id="s-bank" placeholder="Account name, number, IFSC">' + esc(s.bank) + '</textarea>' +
       '<label>Terms</label><textarea id="s-terms">' + esc(s.terms) + '</textarea>' +
@@ -1785,7 +1773,6 @@
       '<label>Address</label><textarea id="c-address">' + esc(c.address) + '</textarea>' +
       '<div class="grid2"><div><label>City</label><input id="c-city" value="' + esc(c.city) + '"></div><div><label>State</label><input id="c-state" value="' + esc(c.state) + '"></div></div>' +
       '<label>Their discount (%)</label><input id="c-discount" type="number" min="0" max="100" step="0.5" value="' + esc(c.discount || '') + '" placeholder="0">' +
-      '<div class="hint">Applied to every invoice for this customer, on top of your order-size discounts (up to your maximum).</div>' +
       '<label>Notes</label><textarea id="c-notes">' + esc(c.notes) + '</textarea>' +
       '<div class="btns"><button class="btn primary block" data-a="save-customer" data-id="' + esc(id || '') + '">Save</button></div>' +
       (id ? '<div class="btns"><button class="btn small" data-a="invoice-for" data-id="' + esc(id) + '">New invoice for them</button>' +
@@ -1994,7 +1981,6 @@
     var months = [], d = new Date(); d.setDate(1);
     for(var i = 0; i < 12; i++){ var x = new Date(d.getFullYear(), d.getMonth() - i, 1); months.push(iso(x).slice(0, 7)); }
     openSheet('<div class="sheet-h"><div class="t">Export for your accountant</div><button class="x" data-a="close">✕</button></div>' +
-      '<p class="muted">Spreadsheet files (CSV) that open in Excel or Google Sheets. Cancelled invoices are listed but not totalled.</p>' +
       '<label>Month</label><select id="ex-month">' + months.map(function(m){
         var n = list('invoices').filter(function(i){ return monthKey(i.date) === m; }).length;
         return '<option value="' + m + '">' + new Date(m + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) + ' · ' + n + ' invoice' + (n === 1 ? '' : 's') + '</option>';
@@ -2106,7 +2092,6 @@
       '<div class="row"><span class="muted">GST ' + d.gstRate + '%</span><span class="r">' + money2(c.tax) + '</span></div>' +
       '<div class="row"><span><b>Quote total</b></span><span class="r">' + money(c.total) + '</span></div>' +
       (cost > 0 ? '<div class="row"><span class="muted">You earn (after your Thread Tribe cost)</span><span class="r" style="color:' + (earn > 0 ? 'var(--green)' : 'var(--red)') + '">' + money(earn) + '</span></div>' : '') + '</div>' +
-      (cost > 0 ? '<p class="muted" style="margin:6px 4px 0;font-size:12px">Only you see what you earn; it isn’t on the quote.</p>' : '') +
       '<label>Note for the buyer (optional)</label><textarea id="q-notes" maxlength="1000" placeholder="e.g. Dispatch in 7 days after confirmation. Mixed colours available.">' + esc(d.notes) + '</textarea>' +
       '<div class="btns"><button class="btn primary block" data-a="save-quote"' + (d.lines.length ? '' : ' disabled') + '>' + (d.id ? 'Save changes' : 'Create quote') + '</button></div>');
   }
@@ -2224,13 +2209,11 @@
       [['Business', c.name], ['Contact', c.contact], ['Phone', c.phone], ['Email', c.email], ['GSTIN', c.gstin], ['Address', [c.address, c.city, c.state].filter(Boolean).join(', ')]].map(function(r){
         return '<div class="row"><span class="muted">' + r[0] + '</span><span class="r" style="white-space:normal">' + esc(r[1] || '—') + '</span></div>';
       }).join('') + '<div class="btns"><button class="btn small" data-a="edit-profile">Request a change</button><button class="btn small" data-a="message">Message Thread Tribe</button></div></div>' +
-      '<p class="muted" style="margin:14px 4px 0">Your customers, invoices and selling prices are private to you. Thread Tribe only sees how many of each product you sell on, by city.</p>' +
       '<div class="btns"><button class="btn small danger" data-a="signout">Sign out</button></div>';
   }
   function profileSheet(){
     var c = pack().client;
     openSheet('<div class="sheet-h"><div class="t">Update your details</div><button class="x" data-a="close">✕</button></div>' +
-      '<p class="muted">Thread Tribe checks changes before they apply.</p>' +
       '<label>Contact name</label><input id="f-contact" value="' + esc(c.contact) + '">' +
       '<label>Phone</label><input id="f-phone" inputmode="tel" value="' + esc(c.phone) + '">' +
       '<label>GSTIN</label><input id="f-gstin" value="' + esc(c.gstin) + '" maxlength="15" style="text-transform:uppercase">' +
@@ -2317,7 +2300,7 @@
     pjb.open = id;
     var d = p.data || {}, st = pjbSt(p), at = PJB.findIndex(function(s){ return s[0] === st; }), ts = pjbItems(p.id, 'task'), cm = pjbItems(p.id, 'comment');
     var html = '<div class="sheet-h"><div class="t">' + esc(d.title || 'Custom design') + '</div><button class="x" data-a="close">✕</button></div>' +
-      (st === PJB_REQ ? '<div class="note info">Thread Tribe is reviewing your request. They’ll reply here and start the design once it’s accepted.</div>' :
+      (st === PJB_REQ ? '<span class="chip soon">Under review</span>' :
        at >= 0 ? '<div class="steps">' + PJB.map(function(s, i){ return '<div class="st ' + (i < at ? 'done' : i === at ? 'now' : '') + '"><b>' + (i < at ? '✓' : i + 1) + '</b>' + s[1] + '</div>'; }).join('') + '</div>' : '<div class="note warn">' + pjbStage(st) + '</div>') +
       ([d.qty ? d.qty + ' pcs' : '', d.targetPrice ? 'target ₹' + d.targetPrice + '/pc' : ''].filter(Boolean).length ? '<div class="muted" style="margin-top:10px">' + [d.qty ? d.qty + ' pcs' : '', d.targetPrice ? 'target ₹' + d.targetPrice + '/pc' : ''].filter(Boolean).join(' · ') + '</div>' : '') +
       (d.due ? '<div class="muted" style="margin-top:10px">Target date ' + fmtDate(d.due) + '</div>' : '') +
@@ -2346,7 +2329,6 @@
   function customSheet(){
     cdPhotos = [];
     openSheet('<div class="sheet-h"><div class="t">Request a custom design</div><button class="x" data-a="close">✕</button></div>' +
-      '<p class="muted">Share your idea with Thread Tribe’s design team — a sketch, a photo of something you like, or a link. They’ll reply here.</p>' +
       '<label>What should we make?</label><input id="cd-title" maxlength="120" placeholder="e.g. Ganesha fidget clicker">' +
       '<label>Describe it</label><textarea id="cd-brief" maxlength="3000" placeholder="Size, colours, who buys it, what makes it special…"></textarea>' +
       '<label>Reference photos (up to 4)</label><input id="cd-photos" type="file" accept="image/*" multiple><div id="cd-thumbs" class="thumbs"></div>' +
