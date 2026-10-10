@@ -1408,7 +1408,6 @@
     var t = T(), inCart = store.cart.find(function(l){ return l.productId === id; });
     var qty = inCart ? inCart.qty : Math.max(t.minPerProduct, 25);
     var cartQty = 0;
-    var rows = slabRowsFor();
     var chips = [t.minPerProduct, 25, 50, 100, 250, 500, 1000, 5000].filter(function(v, i, a){ return v >= t.minPerProduct && a.indexOf(v) === i; });
     openSheet('<div class="sheet-h"><div class="t">' + esc(p.name) + '</div><button class="x" data-a="close">✕</button></div>' +
       '<div class="hero">' + (p.photo ? '<img alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
@@ -1421,11 +1420,6 @@
       '<label>Quantity (min ' + t.minPerProduct + ')</label><div class="qty"><button data-a="qty-" type="button">−</button><input id="pq" type="number" inputmode="numeric" min="' + t.minPerProduct + '" step="1" value="' + qty + '"><button data-a="qty+" type="button">+</button></div>' +
       '<div class="qchips">' + chips.map(function(v){ return '<button type="button" class="qchip" data-a="set-qty" data-v="' + v + '">' + (v >= 1000 ? (v / 1000) + 'k' : v) + '</button>'; }).join('') + '</div>' +
       '<div id="pline" class="pline" data-cartqty="' + cartQty + '" data-id="' + esc(p.id) + '"></div>' +
-      (onRequest(p) ? '' : '<div class="card"><div class="muted" style="margin-bottom:4px">Bulk prices</div><table class="slabs">' +
-        rows.map(function(s, i){
-          var nextMin = rows[i + 1] ? rows[i + 1].min : null;
-          return '<tr data-min="' + s.min + '" data-max="' + (nextMin ? nextMin - 1 : '') + '"><td>' + s.min.toLocaleString('en-IN') + (nextMin ? '–' + (nextMin - 1).toLocaleString('en-IN') : '+') + ' pcs' + (s.pct ? ' · ' + s.pct + '% off' : '') + '</td><td>' + money(priceAt(p, s.pct)) + ' / pc</td></tr>';
-        }).join('') + '</table></div>') +
       '<div class="btns" style="margin:4px 0 0"><button class="btn block" data-a="promo-new" data-id="' + esc(p.id) + '">📣 Make a post with this</button></div>' +
       '<label>Colour (optional)</label><input id="pc" placeholder="' + esc(p.color || 'e.g. Pastel blue') + '" value="' + esc(inCart ? inCart.color || '' : '') + '">' +
       '<div class="btns"><button class="btn primary block" data-a="add" data-id="' + esc(p.id) + '">' + (inCart ? 'Update cart' : 'Add to cart') + '</button></div>');
