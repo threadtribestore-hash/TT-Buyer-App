@@ -234,6 +234,10 @@
   .fchip{ border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent); border-radius:20px; padding:6px 12px; font-size:13px; font-weight:600; cursor:pointer; }
   label.check{ display:flex; gap:10px; align-items:center; color:var(--text); font-size:14.5px; margin-top:14px; cursor:pointer; }
   label.check input{ width:20px; height:20px; flex:none; accent-color:var(--accent); }
+  .catpick{ display:flex; flex-wrap:wrap; gap:8px; }
+  .catopt{ display:inline-flex; align-items:center; gap:6px; margin:0; padding:8px 12px; border:1px solid var(--line); border-radius:20px; background:var(--panel); color:var(--text); font-size:13.5px; font-weight:500; cursor:pointer; }
+  .catopt input{ width:16px; height:16px; margin:0; accent-color:var(--accent); } .catopt small{ color:var(--dim); font-size:12px; }
+  .catopt:has(input:checked){ border-color:var(--accent); background:var(--accent-soft); }
 
   .item{ display:flex; gap:12px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:10px; cursor:pointer; width:100%; text-align:left; box-shadow:var(--shadow); }
   .item .body{ flex:1; min-width:0; }
@@ -425,7 +429,7 @@
     name: 'Name A–Z', light: 'Lightest first', heavy: 'Heaviest first', quick: 'Quickest to make' };
   var COLLS = ['customers', 'invoices', 'prices', 'quotes', 'settings'];
 
-  function blankFilt(){ return { sort: 'recommended', min: '', max: '', ordered: false, retailOnly: false }; }
+  function blankFilt(){ return { sort: 'recommended', min: '', max: '', ordered: false, retailOnly: false, cats: [] }; }
   function blankDocs(){ var d = {}; COLLS.forEach(function(c){ d[c] = {}; }); return d; }
   var store = { pack: null, clientId: '', email: '', cart: [], requests: [], filt: blankFilt(), docs: blankDocs(), pending: [], reorderOf: '' };
   var sb = null, session = null, channel = null, live = null;
@@ -1208,7 +1212,7 @@
     catalogue().forEach(function(p){ var c = p.category || 'Other'; seen[c] = (seen[c] || 0) + 1; });
     return Object.keys(seen).sort().map(function(c){ return { name: c, n: seen[c] }; });
   }
-  function activeFilters(){ var f = store.filt; return (f.min !== '' || f.max !== '' ? 1 : 0) + (f.ordered ? 1 : 0) + (f.retailOnly ? 1 : 0); }
+  function activeFilters(){ var f = store.filt; return (f.min !== '' || f.max !== '' ? 1 : 0) + (f.ordered ? 1 : 0) + (f.retailOnly ? 1 : 0) + ((f.cats || []).length ? 1 : 0); }
   function shopList(){
     var f = store.filt, q = shopQuery.toLowerCase(), ordered = orderedIds(), rank = trendRank();
     var min = parseFloat(f.min), max = parseFloat(f.max);
@@ -1218,6 +1222,7 @@
       else if(shopSeg === 'new'){ if(!isNew(p)) return false; }
       else if(/^col:/.test(shopSeg)){ var col = collectionsLive().find(function(c){ return 'col:' + c.id === shopSeg; }); if(!col || !inCollection(col, p)) return false; }
       else if(shopSeg !== 'all' && (p.category || 'Other') !== shopSeg) return false;
+      if((f.cats || []).length && f.cats.indexOf(p.category || 'Other') === -1) return false;
       if(q && (p.name + ' ' + p.category + ' ' + p.color).toLowerCase().indexOf(q) === -1) return false;
       if((isFinite(min) || isFinite(max)) && onRequest(p)) return false;
       if(isFinite(min) && price < min) return false;
@@ -1239,6 +1244,7 @@
   }
   function filterChips(){
     var f = store.filt, chips = [];
+    (f.cats || []).forEach(function(c){ chips.push('<button class="fchip" data-a="unfilter" data-k="cat" data-v="' + esc(c) + '">' + esc(c) + ' ✕</button>'); });
     if(f.min !== '' || f.max !== '') chips.push('<button class="fchip" data-a="unfilter" data-k="price">' + (f.min !== '' ? money(f.min) : '₹0') + ' – ' + (f.max !== '' ? money(f.max) : 'any') + ' ✕</button>');
     if(f.ordered) chips.push('<button class="fchip" data-a="unfilter" data-k="ordered">Ordered before ✕</button>');
     if(f.retailOnly) chips.push('<button class="fchip" data-a="unfilter" data-k="retail">With MRP ✕</button>');
@@ -1349,6 +1355,9 @@
   function filterSheet(){
     var f = store.filt;
     openSheet('<div class="sheet-h"><div class="t">Filter</div><button class="x" data-a="close">✕</button></div>' +
+      '<label>Categories</label><div class="catpick">' + categories().map(function(c){
+        return '<label class="catopt"><input type="checkbox" data-fcat="' + esc(c.name) + '"' + ((f.cats || []).indexOf(c.name) !== -1 ? ' checked' : '') + '><span>' + esc(c.name) + '</span><small>' + c.n + '</small></label>';
+      }).join('') + '</div>' +
       '<label>Your price per piece (₹)</label><div class="grid2"><input id="fmin" type="number" inputmode="numeric" min="0" placeholder="Min" value="' + esc(f.min) + '"><input id="fmax" type="number" inputmode="numeric" min="0" placeholder="Max" value="' + esc(f.max) + '"></div>' +
       '<label class="check"><input type="checkbox" id="ford"' + (f.ordered ? ' checked' : '') + '> Only products I’ve ordered before</label>' +
       (catalogue().some(function(p){ return p.retail; }) ? '<label class="check"><input type="checkbox" id="fret"' + (f.retailOnly ? ' checked' : '') + '> Only products with an MRP</label>' : '') +
@@ -1362,6 +1371,7 @@
     if(f.min !== '' && f.max !== '' && f.min > f.max){ var x = f.min; f.min = f.max; f.max = x; }
     f.ordered = document.getElementById('ford').checked;
     var r = document.getElementById('fret'); f.retailOnly = !!(r && r.checked);
+    f.cats = Array.prototype.filter.call(document.querySelectorAll('[data-fcat]'), function(x){ return x.checked; }).map(function(x){ return x.getAttribute('data-fcat'); });
     save(); closeSheet(); renderAll();
   }
   function slabRowsFor(){
@@ -2473,6 +2483,7 @@
     else if(act === 'unfilter'){
       var k = a.getAttribute('data-k'), f = store.filt;
       if(k === 'price'){ f.min = ''; f.max = ''; } else if(k === 'ordered') f.ordered = false; else if(k === 'retail') f.retailOnly = false;
+      else if(k === 'cat'){ var cv = a.getAttribute('data-v'); f.cats = (f.cats || []).filter(function(c){ return c !== cv; }); }
       save(); renderAll();
     }
     else if(act === 'set-qty'){ var qi = document.getElementById('pq'); if(qi){ qi.value = a.getAttribute('data-v'); updateLine(); } }
