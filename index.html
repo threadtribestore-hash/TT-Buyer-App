@@ -271,6 +271,19 @@
   .bk-logo img{ width:100%; height:100%; object-fit:cover; }
   .pchips{ display:flex; gap:8px; flex-wrap:wrap; } .pchip{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 4px; border:1px solid var(--line); border-radius:20px; background:var(--panel); color:var(--text); font-size:13px; font-weight:600; cursor:pointer; max-width:100%; }
   .pchip img{ width:28px; height:28px; border-radius:50%; object-fit:cover; } .pchip span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; } .pchip.on{ border-color:var(--accent); background:var(--accent-soft); }
+  .seg button .n{ margin-left:6px; }
+  .agrid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; } @media (min-width:640px){ .agrid{ grid-template-columns:repeat(4, 1fr); } }
+  .atile{ position:relative; aspect-ratio:1; border:0; padding:0; border-radius:12px; overflow:hidden; background:var(--panel2); cursor:pointer; }
+  .atile img, .atile video{ width:100%; height:100%; object-fit:cover; display:block; } .atile.on{ outline:3px solid var(--accent); outline-offset:-3px; }
+  .atile .aname{ position:absolute; left:0; right:0; bottom:0; padding:14px 6px 4px; font-size:10.5px; font-weight:600; color:#fff; text-align:left; background:linear-gradient(transparent, rgba(0,0,0,.65)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .atile .abadge{ position:absolute; top:6px; right:6px; background:rgba(0,0,0,.55); color:#fff; border-radius:10px; font-size:12px; padding:1px 7px; }
+  .atile .acheck{ position:absolute; top:6px; left:6px; width:24px; height:24px; border-radius:12px; border:2px solid #fff; background:rgba(0,0,0,.35); color:#fff; font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .atile.on .acheck{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .aview img, .aview canvas, .aview video{ width:100%; border-radius:14px; display:block; }
+  .lstats{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:8px; } .lstats div{ background:var(--panel2); border-radius:10px; padding:8px 10px; } .lstats b{ display:block; font-size:16px; } .lstats span{ font-size:12px; color:var(--dim); }
+  .card.off{ opacity:.6; } .picklist{ max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:12px; padding:2px 12px 10px; margin-top:6px; }
+  .ptest{ width:100%; border-collapse:collapse; font-size:13px; } .ptest th, .ptest td{ text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); } .ptest th{ color:var(--dim); font-weight:500; } .ptest tr.best td{ color:var(--green); font-weight:700; }
+  .fchip.on{ border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
   .promo-prev{ margin-top:12px; width:100%; max-height:62vh; border-radius:14px; overflow:hidden; background:var(--panel2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
   .promo-prev canvas{ width:100%; height:100%; object-fit:contain; display:block; }
   .prodbox{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
@@ -617,6 +630,7 @@
       channel = sb.channel('tt-buyer-' + Math.random().toString(36).slice(2, 8))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'buyer_packs' }, function(){ refreshSoon(250); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_products' }, function(){ refreshSoon(400); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'share_orders' }, function(){ refreshSoon(300); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'buyer_requests' }, function(){ refreshSoon(300); })
         .subscribe(function(st){ cloud.rtDb = st; renderSync(); });
     }catch(e){}
@@ -647,7 +661,7 @@
     if(store.clientId && store.clientId !== row.client_id){ store.cart = []; store.docs = blankDocs(); store.pending = []; }
     store.clientId = row.client_id; store.pack = row.pack;
     cloud.status = 'ok';
-    await Promise.all([loadRequests(), loadDocs(), loadProjects().catch(function(){}), loadTracking().catch(function(){}), loadShopDesigns().catch(function(){})]);
+    await Promise.all([loadRequests(), loadDocs(), loadProjects().catch(function(){}), loadTracking().catch(function(){}), loadShopDesigns().catch(function(){}), loadPromote().catch(function(){})]);
     store.cart = store.cart.filter(function(l){ return product(l.productId); });
     save();
     if(prev) notifyChanges(prev, row.pack);
@@ -994,8 +1008,8 @@
     if(replied) out.push({ ic: '💬', cls: 'info', t: 'Thread Tribe replied', s: replied.reply, go: 'orders', seg: 'requests' });
     var od = dues().filter(function(d){ return daysSince(d.oldest) > 15; });
     if(od.length) out.push({ ic: '💰', cls: 'warn', t: money(od.reduce(function(t, d){ return t + d.total; }, 0)) + ' overdue from ' + od.length + ' buyer' + (od.length === 1 ? '' : 's'), s: 'More than 15 days — tap to send reminders', go: 'business', bseg: 'invoices' });
-    var lastPost = (promoLog()[0] || {}).at || '';
-    if(realOrders().length && (!lastPost || lastPost < daysAgo(7))) out.push({ ic: '📣', cls: 'info', t: lastPost ? 'No posts in a week' : 'Make your first post', s: 'Your products, your name — ready to share', go: 'promote' });
+    var nb = newOrders();
+    if(nb.length) out.push({ ic: '🛍️', cls: 'good', t: nb.length + ' new order' + (nb.length === 1 ? '' : 's') + ' from your catalogue links', s: nb.slice(0, 2).map(function(o){ return o.buyer_name + ' · ' + money(o.total); }).join(', '), a: 'promo-orders', id: '' });
     var waiting = openRequests().length;
     if(waiting) out.push({ ic: '⏳', cls: '', t: waiting + ' request' + (waiting === 1 ? '' : 's') + ' with Thread Tribe', s: 'They’ll reply here', go: 'orders', seg: 'requests' });
     if(totalDue() > 0) out.push({ ic: '🧾', cls: '', t: money(totalDue()) + ' due to Thread Tribe', s: 'Pay on delivery', go: 'account' });
@@ -1014,7 +1028,7 @@
     var dueCount = dues().length;
     html += '<div class="qa">' +
       (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>Invoice</button>' : '') +
-      '<button data-a="promo-new"><span class="qi">' + ICONS.promote + '</span>Promote</button>' +
+      '<button data-go="promote"><span class="qi">' + ICONS.promote + '</span>Promote</button>' +
       '<button data-a="share-catalog"><span class="qi">' + ICONS.catalog + '</span>Catalogue</button>' +
       (biz ? '<button data-a="home-collect"><span class="qi">' + ICONS.collect + (dueCount ? '<b class="qb">' + dueCount + '</b>' : '') + '</span>Collect</button>' : '') +
       '</div>';
@@ -1109,7 +1123,7 @@
     });
     collectionsLive().forEach(function(c){ out.push({ ic: '🎁', cls: 'good', t: c.name, s: (c.items || []).length + ' products' + (c.note ? ' · ' + c.note : ''), a: 'open-seg', v: 'col:' + c.id }); });
     // urgency: shipments and money first, then replies, then the rest
-    var rank = { '🚚': 1, '📦': 2, '💰': 3, '📣': 7, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
+    var rank = { '🛍️': 1, '🚚': 1, '📦': 2, '💰': 3, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
     return out.sort(function(a, b){ return (rank[a.ic] || 9) - (rank[b.ic] || 9); });
   }
   function attRow(x){
@@ -1420,7 +1434,6 @@
       '<label>Quantity (min ' + t.minPerProduct + ')</label><div class="qty"><button data-a="qty-" type="button">−</button><input id="pq" type="number" inputmode="numeric" min="' + t.minPerProduct + '" step="1" value="' + qty + '"><button data-a="qty+" type="button">+</button></div>' +
       '<div class="qchips">' + chips.map(function(v){ return '<button type="button" class="qchip" data-a="set-qty" data-v="' + v + '">' + (v >= 1000 ? (v / 1000) + 'k' : v) + '</button>'; }).join('') + '</div>' +
       '<div id="pline" class="pline" data-cartqty="' + cartQty + '" data-id="' + esc(p.id) + '"></div>' +
-      '<div class="btns" style="margin:4px 0 0"><button class="btn block" data-a="promo-new" data-id="' + esc(p.id) + '">📣 Make a post with this</button></div>' +
       '<label>Colour (optional)</label><input id="pc" placeholder="' + esc(p.color || 'e.g. Pastel blue') + '" value="' + esc(inCart ? inCart.color || '' : '') + '">' +
       '<div class="btns"><button class="btn primary block" data-a="add" data-id="' + esc(p.id) + '">' + (inCart ? 'Update cart' : 'Add to cart') + '</button></div>');
     updateLine();
@@ -1888,6 +1901,7 @@
     if(prev){ var paidBefore = (prev.payments || []).reduce(function(t, p){ return t + num(p.amount); }, 0); inv.paid = Math.min(c.total, Math.max(paidBefore, d.paid || 0)); }
     put('invoices', id, inv);
     if(!editing) saveSettings({ nextNo: num(s.nextNo) + 1 });
+    if(d.fromShareOrder) setOrderStatus(d.fromShareOrder, 'invoiced');
     draft = null; closeSheet(); bizSeg = 'invoices'; tab = 'business'; renderAll();
     showInvoice(id);
   }
@@ -2069,150 +2083,311 @@
     window.open('https://wa.me/' + (phone.length >= 11 ? phone : '') + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  // ======================= promote: posts in their own brand, and what they've shared =======================
-  // Brand partners sell by posting on WhatsApp and Instagram. They pick products, choose a format,
-  // and get a ready image with THEIR name, phone, colour and logo (never Thread Tribe's price) plus
-  // a caption; sharing is one tap. Brand kit and share history live in their settings doc.
-  var PROMO_FMT = { status: ['WhatsApp status', 1080, 1920, 'status'], post: ['Instagram post', 1080, 1080, 'insta'], list: ['Price list', 1080, 1350, 'buyer'] };
-  var promo = { ids: [], fmt: 'status', price: true, img: null, busy: false };
+  // ======================= promote: catalogue links, orders from buyers, assets, captions =======================
+  // One space for selling under their own name:
+  //  · Catalogue links: a mini shop (s.html) with their name and prices. Each link can carry a
+  //    different price level, so they can price-test with buyers and compare views and orders.
+  //  · Orders placed on those links land here; confirm, message, invoice or restock from them.
+  //  · Assets: Thread Tribe's product photos, their saved ones and their own uploads, ready to share.
+  //  · Captions they reuse. Brand kit (name, phone, colour, logo) is shared by all of it.
+  var pm = { seg: 'links', links: [], orders: [], missing: false, loaded: false, aq: '', af: 'all', select: false, sel: {}, uploads: [], upLoaded: false, upMissing: false, stamp: false };
   function brand(){ var s = settings(); return { name: s.bizName || (pack().client || {}).name || '', phone: s.phone || '', tagline: s.tagline || '', color: s.brandColor || '#1f9e93', logo: s.logo || '' }; }
-  function promoLog(){ return settings().promoLog || []; }
-  function logShare(how){
-    var l = promoLog().slice(0, 149);
-    l.unshift({ at: new Date().toISOString(), ids: promo.ids.slice(), fmt: promo.fmt, how: how });
-    saveSettings({ promoLog: l });
+  async function loadPromote(){
+    if(!sb || !session || !store.clientId) return;
+    var r = await Promise.all([
+      sb.from('catalog_shares').select('id,name,data,active,views,created_at').eq('client_id', store.clientId).order('created_at', { ascending: false }),
+      sb.from('share_orders').select('id,share_id,buyer_name,buyer_phone,lines,total,note,status,created_at').eq('client_id', store.clientId).order('created_at', { ascending: false }).limit(300)
+    ]);
+    if(r[0].error){ pm.missing = /catalog_shares|does not exist|schema cache|relation/i.test(r[0].error.message || ''); pm.loaded = true; return; }
+    pm.missing = false; pm.loaded = true; pm.links = r[0].data || []; pm.orders = r[1].data || [];
   }
-  function lastShared(id){ var e = promoLog().find(function(x){ return (x.ids || []).indexOf(id) !== -1; }); return e ? e.at : ''; }
-  function orderedCounts(){ var m = {}; pack().orders.forEach(function(o){ o.lines.forEach(function(l){ if(l.catalogId) m[l.catalogId] = (m[l.catalogId] || 0) + l.qty; }); }); return m; }
+  function linkUrl(id){ return location.origin + location.pathname.replace(/[^\/]*$/, '') + 's.html?id=' + encodeURIComponent(id); }
+  function newOrders(){ return pm.orders.filter(function(o){ return o.status === 'new'; }); }
+  function linkStats(l){
+    var os = pm.orders.filter(function(o){ return o.share_id === l.id && o.status !== 'declined'; });
+    return { orders: os.length, value: os.reduce(function(t, o){ return t + num(o.total); }, 0), conv: l.views ? Math.round(100 * os.length / l.views) : 0 };
+  }
+  function adjLabel(a){ a = num(a); return !a ? 'Your prices' : (a > 0 ? '+' : '') + a + '%'; }
   function renderPromote(){
-    var b = brand(), log = promoLog(), cat = catalogue(), oc = orderedCounts();
-    var stocked = cat.filter(function(p){ return oc[p.id]; }).sort(function(a, c){ return oc[c.id] - oc[a.id]; });
-    var never = stocked.filter(function(p){ return !lastShared(p.id); });
-    var fresh = cat.filter(isNew).slice(0, 8);
-    var weekShares = log.filter(function(x){ return (x.at || '') >= daysAgo(7); }).length;
-    var chips = function(list){ return '<div class="pchips">' + list.slice(0, 8).map(function(p){ return '<button class="pchip" data-a="promo-new" data-id="' + esc(p.id) + '">' + (p.photo ? '<img src="' + esc(p.photo) + '" alt="">' : '') + '<span>' + esc(p.name) + '</span></button>'; }).join('') + '</div>'; };
+    var b = brand(), nNew = newOrders().length;
     var html = '<div class="card brandcard"><div class="bk-logo" style="background:' + esc(b.color) + '">' + (b.logo ? '<img src="' + b.logo + '" alt="">' : esc((b.name || '?').slice(0, 1).toUpperCase())) + '</div>' +
       '<div style="flex:1;min-width:0"><div style="font-weight:700">' + esc(b.name || 'Your business') + '</div><div class="muted">' + esc([b.phone, b.tagline].filter(Boolean).join(' · ') || 'Add your phone and tagline') + '</div></div>' +
-      '<button class="btn small" data-a="brand-edit">Brand kit</button></div>';
-    html += '<button class="btn primary block" data-a="promo-new">＋ Make a post</button>';
-    html += '<div class="stats" style="margin-top:12px"><div class="stat"><div class="k">Posts this week</div><div class="v">' + weekShares + '</div></div><div class="stat"><div class="k">Products never promoted</div><div class="v">' + never.length + '</div></div></div>';
-    collectionsLive().forEach(function(c){
-      var items = cat.filter(function(p){ return inCollection(c, p); });
-      if(items.length) html += '<div class="h2">' + esc(c.name) + (c.until ? ' <span class="count">until ' + fmtDate(c.until) + '</span>' : '') + '</div><div class="card"><div class="btns" style="margin:0 0 8px"><button class="btn small primary" data-a="promo-new" data-ids="' + esc(items.slice(0, 4).map(function(p){ return p.id; }).join(',')) + '">Post this collection</button></div>' + chips(items) + '</div>';
-    });
-    if(never.length) html += '<div class="h2">In your stock, not promoted yet</div><div class="card">' + chips(never) + '</div>';
-    if(fresh.length) html += '<div class="h2">New from Thread Tribe</div><div class="card">' + chips(fresh) + '</div>';
-    html += '<div class="h2">Share your catalogue</div><div class="card"><div class="btns" style="margin:0"><button class="btn small" data-a="share-catalog">Catalogue with your prices</button></div></div>';
-    html += '<div class="h2">Recently shared<span class="count">' + log.length + '</span></div>' + (log.length ? '<div class="card">' + log.slice(0, 12).map(function(x){
-      var names = (x.ids || []).map(function(id){ var p = product(id); return p ? p.name : ''; }).filter(Boolean);
-      return '<div class="row"><span style="min-width:0">' + esc(names.join(', ') || 'Products') + '<div class="muted">' + esc((PROMO_FMT[x.fmt] || ['Post'])[0]) + ' · ' + esc(x.how === 'download' ? 'saved' : x.how === 'whatsapp' ? 'WhatsApp' : 'shared') + '</div></span><span class="r muted" style="font-weight:500">' + fmtDate(x.at) + '</span></div>';
-    }).join('') + '</div>' : '<div class="card empty"><b>Nothing shared yet</b>Your first post is two taps away.</div>');
+      '<button class="btn small" data-a="brand-edit">Brand kit</button></div>' +
+      '<div class="seg">' + [['links', 'Catalogue links', pm.links.length], ['orders', 'Orders', nNew], ['assets', 'Assets', null], ['captions', 'Captions', (settings().captions || []).length]].map(function(s){
+        return '<button data-pmseg="' + s[0] + '" class="' + (pm.seg === s[0] ? 'on' : '') + '">' + s[1] + (s[2] ? '<span class="n">' + s[2] + '</span>' : '') + '</button>'; }).join('') + '</div>';
+    if(pm.missing && (pm.seg === 'links' || pm.seg === 'orders')) return html + '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on catalogue links for your account.</div>';
+    return html + ({ links: linksHtml, orders: ordersHtml, assets: assetsHtml, captions: captionsHtml })[pm.seg]();
+  }
+  // ---------- catalogue links ----------
+  function linksHtml(){
+    var live = pm.links.filter(function(l){ return l.active; });
+    var html = '<div class="btns" style="margin:0 0 12px"><button class="btn primary block" data-a="link-new">＋ New catalogue link</button></div>';
+    var tested = live.filter(function(l){ return l.views > 0; });
+    if(tested.length >= 2){
+      var best = tested.slice().sort(function(a, c){ return linkStats(c).conv - linkStats(a).conv || linkStats(c).value - linkStats(a).value; })[0];
+      html += '<div class="h2">Price test</div><div class="card"><table class="ptest"><tr><th>Link</th><th>Price</th><th>Views</th><th>Orders</th><th>Value</th></tr>' + tested.map(function(l){
+        var st = linkStats(l);
+        return '<tr class="' + (l === best ? 'best' : '') + '"><td>' + esc(l.name) + '</td><td>' + adjLabel(l.data.adjust) + '</td><td>' + l.views + '</td><td>' + st.orders + ' <small>(' + st.conv + '%)</small></td><td>' + money(st.value) + '</td></tr>';
+      }).join('') + '</table><div class="muted" style="margin-top:6px">Best so far: <b>' + esc(best.name) + '</b> · ' + adjLabel(best.data.adjust) + '</div></div>';
+    }
+    html += pm.links.length ? pm.links.map(function(l){
+      var st = linkStats(l), n = (l.data.items || []).length;
+      return '<div class="card' + (l.active ? '' : ' off') + '"><div class="row" style="padding-top:0"><span style="min-width:0"><b>' + esc(l.name) + '</b><div class="muted">' + n + ' products · ' + adjLabel(l.data.adjust) + (l.active ? '' : ' · paused') + '</div></span><span class="r muted" style="font-weight:500">' + fmtDate(l.created_at) + '</span></div>' +
+        '<div class="lstats"><div><b>' + l.views + '</b><span>views</span></div><div><b>' + st.orders + '</b><span>orders</span></div><div><b>' + money(st.value) + '</b><span>value</span></div></div>' +
+        '<div class="btns"><button class="btn small primary" data-a="link-share" data-id="' + esc(l.id) + '">Share</button><button class="btn small" data-a="link-copy" data-id="' + esc(l.id) + '">Copy link</button><a class="btn small" href="' + esc(linkUrl(l.id)) + '" target="_blank" rel="noopener">Open</a>' +
+        '<button class="btn small" data-a="link-refresh" data-id="' + esc(l.id) + '">Update prices</button><button class="btn small" data-a="link-toggle" data-id="' + esc(l.id) + '">' + (l.active ? 'Pause' : 'Resume') + '</button><button class="btn small danger" data-a="link-del" data-id="' + esc(l.id) + '">Delete</button></div></div>';
+    }).join('') : '<div class="card empty"><b>No links yet</b>Make one for your buyers: they see your products at your prices and order straight from it.</div>';
     return html;
   }
-  function promoSheet(){
-    var picked = promo.ids.map(product).filter(Boolean), f = PROMO_FMT[promo.fmt];
-    var opts = catalogue().slice().sort(function(a, c){ return a.name.localeCompare(c.name); }).filter(function(p){ return promo.ids.indexOf(p.id) === -1; });
-    openSheet('<div class="sheet-h"><div class="t">Make a post</div><button class="x" data-a="close">✕</button></div>' +
-      '<div class="pchips">' + picked.map(function(p){ return '<span class="pchip on">' + (p.photo ? '<img src="' + esc(p.photo) + '" alt="">' : '') + '<span>' + esc(p.name) + '</span><button class="link" data-a="promo-del" data-id="' + esc(p.id) + '" aria-label="Remove">✕</button></span>'; }).join('') + '</div>' +
-      (picked.length < 4 ? '<select id="promo-add"><option value="">＋ Add a product (up to 4)</option>' + opts.map(function(p){ return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select>' : '') +
-      '<div class="seg" style="margin:10px 0 0">' + Object.keys(PROMO_FMT).map(function(k){ return '<button type="button" data-a="promo-fmt" data-v="' + k + '" class="' + (promo.fmt === k ? 'on' : '') + '">' + PROMO_FMT[k][0] + '</button>'; }).join('') + '</div>' +
-      '<label class="check"><input type="checkbox" id="promo-price"' + (promo.price ? ' checked' : '') + '> Show my selling price</label>' +
-      '<div class="promo-prev" style="aspect-ratio:' + f[1] + '/' + f[2] + '">' + (picked.length ? '<canvas id="promo-cv"></canvas>' : '<span class="muted">Pick a product to see your post</span>') + '</div>' +
-      '<label>Caption</label><textarea id="promo-cap" style="min-height:110px">' + esc(picked.length ? promoCaption(picked) : '') + '</textarea>' +
-      '<div class="btns"><button class="btn primary" data-a="promo-share"' + (picked.length ? '' : ' disabled') + '>Share</button><button class="btn" data-a="promo-wa"' + (picked.length ? '' : ' disabled') + '>WhatsApp</button>' +
-      '<button class="btn" data-a="promo-save"' + (picked.length ? '' : ' disabled') + '>Save image</button><button class="btn" data-a="promo-copy">Copy caption</button></div>');
-    if(picked.length) drawPromo(picked);
+  var linkDraft = null;
+  function linkSheet(){
+    var cats = categories(), oc = {}, d = linkDraft;
+    pack().orders.forEach(function(o){ o.lines.forEach(function(l){ if(l.catalogId) oc[l.catalogId] = 1; }); });
+    var cat = catalogue().slice().sort(function(a, c){ return a.name.localeCompare(c.name); });
+    var ex = cat.find(function(p){ return oc[p.id]; }) || cat[0];
+    openSheet('<div class="sheet-h"><div class="t">New catalogue link</div><button class="x" data-a="close">✕</button></div>' +
+      '<label>Name (only you see this)</label><input id="ln-name" value="' + esc(d.name) + '" placeholder="e.g. Wholesalers — price A">' +
+      '<label>Products</label><select id="ln-which"><option value="all"' + (d.which === 'all' ? ' selected' : '') + '>All products (' + cat.length + ')</option><option value="mine"' + (d.which === 'mine' ? ' selected' : '') + '>Products I’ve ordered (' + cat.filter(function(p){ return oc[p.id]; }).length + ')</option>' +
+        cats.map(function(c){ return '<option value="cat:' + esc(c.name) + '"' + (d.which === 'cat:' + c.name ? ' selected' : '') + '>' + esc(c.name) + ' (' + c.n + ')</option>'; }).join('') + '<option value="pick"' + (d.which === 'pick' ? ' selected' : '') + '>Choose products…</option></select>' +
+      (d.which === 'pick' ? '<div class="picklist">' + cat.map(function(p){ return '<label class="check" style="margin-top:8px"><input type="checkbox" data-lpick="' + esc(p.id) + '"' + (d.picked[p.id] ? ' checked' : '') + '> ' + esc(p.name) + '</label>'; }).join('') + '</div>' : '') +
+      '<label>Price level</label><div class="grid2"><select id="ln-adj">' + [-20, -15, -10, -5, 0, 5, 10, 15, 20, 30].map(function(a){ return '<option value="' + a + '"' + (num(d.adjust) === a ? ' selected' : '') + '>' + (a ? (a > 0 ? '+' : '') + a + '% on my prices' : 'My selling prices') + '</option>'; }).join('') + '</select>' +
+        '<div class="muted" style="align-self:center">' + (ex ? esc(ex.name) + ': ' + money(Math.min(Math.round(sellPrice(ex) * (1 + num(d.adjust) / 100)), ex.base || 1e9)) : '') + '</div></div>' +
+      '<label>Message at the top (optional)</label><textarea id="ln-note" maxlength="400" placeholder="e.g. Diwali rates, valid till 31 Oct. Min 10 pcs per design.">' + esc(d.note) + '</textarea>' +
+      '<div class="btns"><button class="btn primary block" data-a="link-create">Create link</button></div>');
   }
-  function promoCaption(list){
-    var b = brand(), prev = kit.style, prevPrice = kit.price;
-    kit.style = PROMO_FMT[promo.fmt][3]; kit.price = promo.price;
-    var text = list.length === 1 ? caption(list[0]) :
-      ['✨ Now available at ' + (b.name || 'our store') + ' ✨'].concat(list.map(function(p){ return '• ' + p.name + (promo.price && sellPrice(p) ? ' — ₹' + sellPrice(p) : ''); }))
-        .concat(['Wholesale and bulk orders welcome.', b.phone ? '📞 ' + b.phone : '']).filter(Boolean).join('\n');
-    kit.style = prev; kit.price = prevPrice;
-    return text;
+  function linkItems(which, picked, adjust){
+    var oc = {}; pack().orders.forEach(function(o){ o.lines.forEach(function(l){ if(l.catalogId) oc[l.catalogId] = 1; }); });
+    return catalogue().filter(function(p){ return which === 'all' || (which === 'mine' && oc[p.id]) || (which === 'pick' && picked[p.id]) || (/^cat:/.test(which) && (p.category || 'Other') === which.slice(4)); })
+      .map(function(p){ return { id: p.id, name: p.name, category: p.category || '', photo: /^https:\/\//.test(p.photo || '') ? p.photo : '', price: Math.min(Math.round(sellPrice(p) * (1 + num(adjust) / 100)), p.base > 0 ? Math.round(p.base) : 1e9), mrp: p.base > 0 ? Math.round(p.base) : 0 }; });
   }
+  function linkData(items, adjust, note){
+    var b = brand();
+    return { bizName: b.name, phone: b.phone, tagline: b.tagline, color: b.color, logo: b.logo && b.logo.length < 120000 ? b.logo : '', note: note || '', adjust: num(adjust), items: items };
+  }
+  function randomId(){ var a = new Uint8Array(9); (window.crypto || window.msCrypto).getRandomValues(a); return Array.prototype.map.call(a, function(x){ return (x % 36).toString(36); }).join(''); }
+  async function createLink(btn){
+    readLinkForm();
+    var d = linkDraft, items = linkItems(d.which, d.picked, d.adjust);
+    if(!items.length){ toast('Pick at least one product'); return; }
+    btn.disabled = true;
+    var row = { id: randomId(), client_id: store.clientId, name: (d.name || 'Catalogue').slice(0, 60), data: linkData(items, d.adjust, d.note), active: true };
+    var r = await sb.from('catalog_shares').insert(row);
+    btn.disabled = false;
+    if(r.error){ toast(/catalog_shares|relation|schema/i.test(r.error.message || '') ? 'Catalogue links aren’t switched on yet' : friendlyErr(r.error)); return; }
+    row.views = 0; row.created_at = new Date().toISOString(); pm.links.unshift(row); linkDraft = null;
+    closeSheet(); pm.seg = 'links'; renderAll(); shareLink(row.id);
+  }
+  function readLinkForm(){
+    if(!linkDraft) return;
+    linkDraft.name = val('ln-name'); linkDraft.adjust = num(val('ln-adj')); linkDraft.note = val('ln-note');
+    var w = document.getElementById('ln-which'); if(w) linkDraft.which = w.value;
+    document.querySelectorAll('[data-lpick]').forEach(function(x){ linkDraft.picked[x.getAttribute('data-lpick')] = x.checked; });
+  }
+  function shareLink(id){
+    var l = pm.links.find(function(x){ return x.id === id; }); if(!l) return;
+    var url = linkUrl(id), text = 'Our catalogue' + (brand().name ? ' from ' + brand().name : '') + ' — see prices and order directly here: ' + url;
+    if(navigator.share){ navigator.share({ title: brand().name || 'Catalogue', text: text }).catch(function(){}); }
+    else window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  }
+  async function updateLink(id, patch){
+    var r = await sb.from('catalog_shares').update(patch).eq('id', id);
+    if(r.error){ toast(friendlyErr(r.error)); return false; }
+    var l = pm.links.find(function(x){ return x.id === id; }); if(l) Object.assign(l, patch);
+    return true;
+  }
+  // ---------- orders from buyers ----------
+  var OST = { new: ['New', 'new'], confirmed: ['Confirmed', 'ok'], invoiced: ['Invoiced', 'ok'], declined: ['Declined', 'bad'] };
+  function ordersHtml(){
+    if(!pm.orders.length) return '<div class="card empty"><b>No orders yet</b>Orders your buyers place on your catalogue links arrive here.</div>';
+    return pm.orders.map(function(o){
+      var l = pm.links.find(function(x){ return x.id === o.share_id; }), pcs = (o.lines || []).reduce(function(t, x){ return t + num(x.qty); }, 0), st = OST[o.status] || OST.new;
+      return '<button class="item" data-a="sorder" data-id="' + esc(o.id) + '"><div class="body"><div class="t">' + esc(o.buyer_name) + '</div><div class="s">' + pcs + ' pcs · ' + money(o.total) + ' · ' + fmtDate(o.created_at) + (l ? ' · ' + esc(l.name) : '') + '</div></div><span class="chip ' + st[1] + '">' + st[0] + '</span><span class="chev">›</span></button>';
+    }).join('');
+  }
+  function sorderSheet(id){
+    var o = pm.orders.find(function(x){ return x.id === id; }); if(!o) return;
+    var l = pm.links.find(function(x){ return x.id === o.share_id; }), st = OST[o.status] || OST.new;
+    openSheet('<div class="sheet-h"><div><div class="muted">' + fmtDate(o.created_at) + (l ? ' · ' + esc(l.name) : '') + '</div><div class="t">' + esc(o.buyer_name) + '</div></div><button class="x" data-a="close">✕</button></div>' +
+      '<span class="chip ' + st[1] + '">' + st[0] + '</span>' +
+      '<div class="card" style="margin-top:10px">' + (o.lines || []).map(function(x){ return '<div class="row"><span>' + esc(x.name) + ' × ' + x.qty + '</span><span class="r">' + money(x.qty * x.price) + '</span></div>'; }).join('') +
+      '<div class="row"><b>Total</b><b class="r">' + money(o.total) + '</b></div></div>' + (o.note ? '<div class="card">“' + esc(o.note) + '”</div>' : '') +
+      '<div class="btns"><a class="btn small" href="tel:' + esc(o.buyer_phone) + '">📞 Call</a><button class="btn small" data-a="sorder-wa" data-id="' + esc(o.id) + '">💬 WhatsApp</button></div>' +
+      '<div class="btns">' + (o.status === 'new' ? '<button class="btn primary" data-a="sorder-st" data-v="confirmed" data-id="' + esc(o.id) + '">Confirm</button><button class="btn" data-a="sorder-st" data-v="declined" data-id="' + esc(o.id) + '">Decline</button>' : '') +
+        (o.status !== 'declined' && o.status !== 'invoiced' ? '<button class="btn" data-a="sorder-inv" data-id="' + esc(o.id) + '">Make invoice</button>' : '') +
+        '<button class="btn" data-a="sorder-cart" data-id="' + esc(o.id) + '">Order these from Thread Tribe</button></div>');
+  }
+  async function setOrderStatus(id, st){
+    var r = await sb.from('share_orders').update({ status: st }).eq('id', id);
+    if(r.error){ toast(friendlyErr(r.error)); return false; }
+    var o = pm.orders.find(function(x){ return x.id === id; }); if(o) o.status = st;
+    return true;
+  }
+  function orderToInvoice(id){
+    var o = pm.orders.find(function(x){ return x.id === id; }); if(!o) return;
+    var digits = String(o.buyer_phone || '').replace(/\D/g, '').slice(-10);
+    var c = list('customers').find(function(x){ return String(x.phone || '').replace(/\D/g, '').slice(-10) === digits; });
+    var cid = c ? c.id : uid();
+    if(!c) put('customers', cid, { business: '', name: o.buyer_name, phone: o.buyer_phone, gstin: '', address: '', city: '', state: '', discount: 0, notes: 'From a catalogue link', createdAt: new Date().toISOString() });
+    draft = newDraft(cid);
+    draft.lines = (o.lines || []).map(function(x){ var p = product(x.id); return { productId: p ? p.id : '', name: x.name, qty: num(x.qty), rate: num(x.price), hsn: (p && store.docs.prices[p.id] && store.docs.prices[p.id].hsn) || settings().hsn }; });
+    draft.fromShareOrder = id;
+    invoiceEditor();
+  }
+  // ---------- assets ----------
+  function savedAssets(){ return settings().savedAssets || []; }
+  function photoAssets(){
+    var oc = {}; pack().orders.forEach(function(o){ o.lines.forEach(function(l){ if(l.catalogId) oc[l.catalogId] = 1; }); });
+    var q = pm.aq.toLowerCase(), saved = savedAssets(), out = [];
+    catalogue().forEach(function(p){
+      if(q && (p.name + ' ' + (p.category || '')).toLowerCase().indexOf(q) === -1) return;
+      if(pm.af === 'mine' && !oc[p.id]) return;
+      if(pm.af === 'new' && !isNew(p)) return;
+      var imgs = (p.images && p.images.length ? p.images : p.photo ? [p.photo] : []);
+      imgs.forEach(function(u){ if(pm.af === 'saved' && saved.indexOf(u) === -1) return; out.push({ u: u, p: p }); });
+    });
+    return out;
+  }
+  async function loadUploads(){
+    if(!sb || !session || !store.clientId) return;
+    var r = await sb.storage.from('partner-assets').list(store.clientId, { limit: 300, sortBy: { column: 'created_at', order: 'desc' } });
+    pm.upLoaded = true;
+    if(r.error){ pm.upMissing = true; pm.uploads = []; return; }
+    var files = (r.data || []).filter(function(f){ return f.name && f.id; });
+    if(!files.length){ pm.uploads = []; return; }
+    var paths = files.map(function(f){ return store.clientId + '/' + f.name; });
+    var s = await sb.storage.from('partner-assets').createSignedUrls(paths, 3600);
+    pm.uploads = files.map(function(f, i){ return { path: paths[i], name: f.name, url: s.data && s.data[i] ? s.data[i].signedUrl : '', video: /\.(mp4|mov|webm|m4v)$/i.test(f.name) }; });
+  }
+  function assetsHtml(){
+    var chips = [['all', 'All photos'], ['mine', 'My stock'], ['new', 'New'], ['saved', 'Saved'], ['uploads', 'My uploads']];
+    var html = '<div class="fchips" style="margin:0 0 8px">' + chips.map(function(c){ return '<button class="fchip' + (pm.af === c[0] ? ' on' : '') + '" data-af="' + c[0] + '">' + c[1] + '</button>'; }).join('') + '</div>';
+    if(pm.af === 'uploads'){
+      if(!pm.upLoaded){ loadUploads().then(renderAll); return html + '<div class="card empty"><b>Loading…</b></div>'; }
+      if(pm.upMissing) return html + '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on uploads for your account.</div>';
+      return html + '<label class="btn primary block" style="margin:0 0 10px">＋ Upload photos or videos<input id="up-files" type="file" accept="image/*,video/*" multiple style="display:none"></label>' +
+        (pm.uploads.length ? '<div class="agrid">' + pm.uploads.map(function(f, i){ return '<button class="atile" data-a="up-view" data-i="' + i + '">' + (f.video ? '<video src="' + esc(f.url) + '#t=0.5" muted playsinline preload="metadata"></video><span class="abadge">▶</span>' : '<img loading="lazy" src="' + esc(f.url) + '" alt="">') + '</button>'; }).join('') + '</div>'
+          : '<div class="card empty"><b>Nothing uploaded yet</b>Your shop photos, customer reviews and videos — kept here, ready to share.</div>');
+    }
+    var items = photoAssets(), n = Object.keys(pm.sel).filter(function(k){ return pm.sel[k]; }).length;
+    html += '<div class="inrow" style="margin-bottom:10px"><input class="search" id="aq" type="search" placeholder="Search products" value="' + esc(pm.aq) + '"><button class="btn small" data-a="asel">' + (pm.select ? 'Done' : 'Select') + '</button></div>';
+    if(pm.select) html += '<div class="sharebar"><span>' + n + ' selected</span><button class="btn small" data-a="asel-save"' + (n ? '' : ' disabled') + '>☆ Save</button><button class="btn small" data-a="asel-dl"' + (n ? '' : ' disabled') + '>Download</button><button class="btn small primary" data-a="asel-share"' + (n ? '' : ' disabled') + '>Share</button></div>';
+    return html + (items.length ? '<div class="agrid">' + items.slice(0, 300).map(function(x, i){
+      var on = !!pm.sel[x.u], sv = savedAssets().indexOf(x.u) !== -1;
+      return '<button class="atile' + (on ? ' on' : '') + '" data-a="' + (pm.select ? 'asel-one' : 'a-view') + '" data-u="' + esc(x.u) + '" data-id="' + esc(x.p.id) + '"><img loading="lazy" src="' + esc(x.u) + '" alt="">' + (sv ? '<span class="abadge">★</span>' : '') + (pm.select ? '<span class="acheck">' + (on ? '✓' : '') + '</span>' : '') + '<span class="aname">' + esc(x.p.name) + '</span></button>';
+    }).join('') + '</div>' : '<div class="card empty"><b>Nothing here</b>' + (pm.af === 'saved' ? 'Tap ☆ on any photo to keep it here.' : 'Try another search.') + '</div>');
+  }
+  var viewing = null;
+  function assetSheet(u, pid){
+    var p = product(pid), sv = savedAssets().indexOf(u) !== -1;
+    viewing = { u: u, p: p };
+    openSheet('<div class="sheet-h"><div class="t">' + esc(p ? p.name : 'Photo') + '</div><button class="x" data-a="close">✕</button></div>' +
+      '<div class="aview"><img id="av-img" src="' + esc(u) + '" alt="">' + '<canvas id="av-cv" style="display:none"></canvas></div>' +
+      (p ? '<div class="muted" style="margin-top:6px">Your price ' + money(sellPrice(p)) + ' · MRP ' + money(p.base) + '</div>' : '') +
+      '<label class="check"><input type="checkbox" id="av-stamp"' + (pm.stamp ? ' checked' : '') + '> Add my name and phone</label>' +
+      '<div class="btns"><button class="btn primary" data-a="av-share">Share</button><button class="btn" data-a="av-dl">Download</button><button class="btn" data-a="av-save">' + (sv ? '★ Saved' : '☆ Save') + '</button>' +
+      (p ? '<button class="btn" data-a="av-cap">Copy caption</button>' : '') + '</div>');
+    if(pm.stamp) drawStamp();
+  }
+  function captionFor(p){ var prev = kit.style; kit.style = 'status'; var t = caption(p); kit.style = prev; return t; }
   function loadImg(src){
     return new Promise(function(res){
       if(!src){ res(null); return; }
       var im = new Image(); im.crossOrigin = 'anonymous';
       im.onload = function(){ res(im); }; im.onerror = function(){ res(null); };
-      im.src = src + (/^data:/.test(src) ? '' : (src.indexOf('?') === -1 ? '?' : '&') + 'cors=1');
+      im.src = src + (/^data:|token=/.test(src) ? '' : (src.indexOf('?') === -1 ? '?' : '&') + 'cors=1');
     });
   }
-  function coverDraw(g, im, x, y, w, h){
-    if(!im){ g.fillStyle = '#eef1f5'; g.fillRect(x, y, w, h); return; }
-    var r = Math.max(w / im.width, h / im.height), sw = w / r, sh = h / r;
-    g.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, x, y, w, h);
+  async function drawStamp(){
+    var cv = document.getElementById('av-cv'), img = document.getElementById('av-img'); if(!cv || !viewing) return;
+    var im = await loadImg(viewing.u), b = brand(), logo = await loadImg(b.logo);
+    if(!im || !document.getElementById('av-cv')) return;
+    var sc = Math.min(1, 1600 / Math.max(im.width, im.height)), W = Math.round(im.width * sc), H = Math.round(im.height * sc), band = Math.round(Math.max(90, W * 0.11)), g = cv.getContext('2d');
+    cv.width = W; cv.height = H + band;
+    g.drawImage(im, 0, 0, W, H);
+    g.fillStyle = b.color; g.fillRect(0, H, W, band);
+    var x = Math.round(band * 0.25);
+    if(logo){ var r = band * 0.34; g.save(); g.beginPath(); g.arc(x + r, H + band / 2, r, 0, Math.PI * 2); g.clip(); g.drawImage(logo, x, H + band / 2 - r, r * 2, r * 2); g.restore(); x += r * 2 + band * 0.2; }
+    g.fillStyle = '#fff'; g.font = '700 ' + Math.round(band * 0.32) + 'px "Space Grotesk", system-ui, sans-serif'; g.fillText(b.name || '', x, H + band * 0.46);
+    g.font = '500 ' + Math.round(band * 0.24) + 'px "Space Grotesk", system-ui, sans-serif'; g.fillText([b.phone, b.tagline].filter(Boolean).join('  ·  '), x, H + band * 0.8);
+    cv.style.display = ''; img.style.display = 'none';
   }
-  function fitText(g, text, max, size, weight){
-    var s = size; g.font = weight + ' ' + s + 'px "Space Grotesk", system-ui, sans-serif';
-    while(g.measureText(text).width > max && s > 22){ s -= 2; g.font = weight + ' ' + s + 'px "Space Grotesk", system-ui, sans-serif'; }
-    return s;
+  async function assetBlob(u, stamped){
+    if(stamped){ var cv = document.getElementById('av-cv'); if(cv && cv.width){ return await new Promise(function(res){ try{ cv.toBlob(res, 'image/jpeg', 0.9); }catch(e){ res(null); } }); } }
+    try{ var r = await fetch(u); return await r.blob(); }catch(e){ return null; }
   }
-  async function drawPromo(list){
-    var cv = document.getElementById('promo-cv'); if(!cv) return;
-    var f = PROMO_FMT[promo.fmt], W = f[1], H = f[2], b = brand(), g = cv.getContext('2d');
-    cv.width = W; cv.height = H;
-    var imgs = await Promise.all(list.map(function(p){ return loadImg(p.images && p.images[0] || p.photo); }));
-    var logo = await loadImg(b.logo);
-    if(!document.getElementById('promo-cv')) return;
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
-    var foot = promo.fmt === 'list' ? 0 : 260, head = 130;
-    // header band with logo and name
-    g.fillStyle = b.color; g.fillRect(0, 0, W, head);
-    if(logo){ g.save(); g.beginPath(); g.arc(85, 65, 45, 0, Math.PI * 2); g.clip(); coverDraw(g, logo, 40, 20, 90, 90); g.restore(); }
-    g.fillStyle = '#ffffff'; fitText(g, b.name || 'Your business', W - 200, 52, '700'); g.fillText(b.name || 'Your business', logo ? 150 : 50, 82);
-    if(promo.fmt === 'list'){
-      var rowH = Math.min(260, (H - head - 140) / list.length), y = head + 30;
-      list.forEach(function(p, i){
-        coverDraw(g, imgs[i], 50, y, rowH - 30, rowH - 30);
-        g.fillStyle = '#16202c'; var fs = fitText(g, p.name, W - rowH - 120, 46, '700'); g.fillText(p.name, rowH + 50, y + 60);
-        if(promo.price && sellPrice(p)){ g.fillStyle = b.color; g.font = '700 54px "Space Grotesk", system-ui, sans-serif'; g.fillText('₹' + sellPrice(p) + ' / pc', rowH + 50, y + 60 + fs + 30); }
-        g.fillStyle = '#617183'; g.font = '500 30px "Space Grotesk", system-ui, sans-serif'; g.fillText('MRP ₹' + Math.round(p.base || 0), rowH + 50, y + rowH - 50);
-        y += rowH;
-      });
-    } else {
-      var area = { x: 0, y: head, w: W, h: H - head - foot }, n = list.length;
-      var cells = n === 1 ? [[0, 0, 1, 1]] : n === 2 ? (promo.fmt === 'status' ? [[0, 0, 1, .5], [0, .5, 1, .5]] : [[0, 0, .5, 1], [.5, 0, .5, 1]]) : n === 3 ? [[0, 0, 1, .5], [0, .5, .5, .5], [.5, .5, .5, .5]] : [[0, 0, .5, .5], [.5, 0, .5, .5], [0, .5, .5, .5], [.5, .5, .5, .5]];
-      cells.forEach(function(c, i){ coverDraw(g, imgs[i], area.x + c[0] * area.w + (c[0] ? 4 : 0), area.y + c[1] * area.h + (c[1] ? 4 : 0), c[2] * area.w - (c[0] ? 4 : 0), c[3] * area.h - (c[1] ? 4 : 0)); });
-      // footer: name(s) + price + contact
-      var fy = H - foot;
-      g.fillStyle = '#ffffff'; g.fillRect(0, fy, W, foot);
-      var title = n === 1 ? list[0].name : n + ' new designs in stock';
-      g.fillStyle = '#16202c'; fitText(g, title, W - 100, 60, '700'); g.fillText(title, 50, fy + 80);
-      var sub = n === 1 && promo.price && sellPrice(list[0]) ? '₹' + sellPrice(list[0]) + ' per piece · bulk orders welcome' : 'Wholesale and bulk orders welcome';
-      g.fillStyle = b.color; fitText(g, sub, W - 100, 40, '700'); g.fillText(sub, 50, fy + 145);
-      var contact = [b.phone ? '📞 ' + b.phone : '', b.tagline].filter(Boolean).join('  ·  ');
-      if(contact){ g.fillStyle = '#617183'; fitText(g, contact, W - 100, 34, '500'); g.fillText(contact, 50, fy + 205); }
+  function fileFor(blob, name){ var ext = /png/.test(blob.type) ? 'png' : /webp/.test(blob.type) ? 'webp' : /video|mp4/.test(blob.type) ? 'mp4' : 'jpg'; return new File([blob], (String(name || 'photo').replace(/[^\w\- ]/g, '').trim() || 'photo') + '.' + ext, { type: blob.type || 'image/jpeg' }); }
+  function download(file){ var a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500); }
+  async function shareFiles(files, text){
+    try{ if(files.length && navigator.canShare && navigator.canShare({ files: files })){ await navigator.share({ files: files, text: text || '' }); return true; } }catch(e){ if(e && e.name === 'AbortError') return true; }
+    files.forEach(function(f, i){ setTimeout(function(){ download(f); }, i * 400); });
+    if(text) copyText(text, 'Saved — caption copied'); else toast('Saved to your phone');
+    return false;
+  }
+  function toggleSaved(urls, on){
+    var s = savedAssets().slice();
+    urls.forEach(function(u){ var i = s.indexOf(u); if(on && i === -1) s.unshift(u); if(!on && i !== -1) s.splice(i, 1); });
+    saveSettings({ savedAssets: s.slice(0, 500) });
+  }
+  async function uploadAssets(files){
+    var ok = 0, fail = 0;
+    toast('Uploading ' + files.length + '…');
+    for(var i = 0; i < files.length; i++){
+      var f = files[i], body = f, name = f.name;
+      if(/^image\//.test(f.type) && !/gif/.test(f.type)){ var sh = await shrinkTo(f, 1600); if(sh){ body = sh; name = name.replace(/\.[a-z0-9]+$/i, '') + '.jpg'; } }
+      if(body.size > 50 * 1024 * 1024){ fail++; continue; }
+      var path = store.clientId + '/' + Date.now().toString(36) + '-' + String(name).replace(/[^\w.\-]/g, '_').slice(-60);
+      var r = await sb.storage.from('partner-assets').upload(path, body, { contentType: body.type || f.type, upsert: false });
+      if(r.error) fail++; else ok++;
     }
-    promo.img = cv;
+    await loadUploads(); renderAll();
+    toast(ok + ' uploaded' + (fail ? ' · ' + fail + ' failed (max 50 MB each)' : ''));
   }
-  function promoBlob(){
-    return new Promise(function(res){ var cv = document.getElementById('promo-cv'); if(!cv){ res(null); return; } try{ cv.toBlob(function(b){ res(b); }, 'image/jpeg', 0.9); }catch(e){ res(null); } });
+  function shrinkTo(file, side){
+    return new Promise(function(res){
+      var url = URL.createObjectURL(file), im = new Image();
+      im.onload = function(){ var s = Math.min(1, side / Math.max(im.width, im.height)), cv = document.createElement('canvas'); cv.width = Math.round(im.width * s); cv.height = Math.round(im.height * s); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url); cv.toBlob(function(b){ res(b); }, 'image/jpeg', 0.86); };
+      im.onerror = function(){ URL.revokeObjectURL(url); res(null); };
+      im.src = url;
+    });
   }
-  function promoFileName(){ var p = product(promo.ids[0]); return ((p ? p.name : 'post').replace(/[^\w\- ]/g, '').trim() || 'post') + ' - ' + PROMO_FMT[promo.fmt][0] + '.jpg'; }
-  async function promoShare(how){
-    var text = val('promo-cap'), blob = await promoBlob();
-    if(how === 'save'){
-      if(!blob){ toast('Couldn’t make the image — try another photo'); return; }
-      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = promoFileName(); document.body.appendChild(a); a.click();
-      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-      logShare('download'); toast('Image saved'); return;
-    }
-    if(how === 'whatsapp'){ copyText(text, 'Caption copied'); window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); logShare('whatsapp'); return; }
-    try{
-      var file = blob ? new File([blob], promoFileName(), { type: 'image/jpeg' }) : null;
-      if(file && navigator.canShare && navigator.canShare({ files: [file] })){ await navigator.share({ files: [file], text: text }); logShare('share'); toast('Shared'); return; }
-    }catch(e){ if(e && e.name === 'AbortError') return; }
-    // No file sharing on this device: save the image and copy the caption instead.
-    await promoShare('save'); copyText(text, 'Image saved and caption copied — post them together');
+  function uploadSheet(i){
+    var f = pm.uploads[i]; if(!f) return;
+    openSheet('<div class="sheet-h"><div class="t">' + esc(f.name.replace(/^[a-z0-9]+-/, '')) + '</div><button class="x" data-a="close">✕</button></div>' +
+      '<div class="aview">' + (f.video ? '<video src="' + esc(f.url) + '" controls playsinline style="width:100%"></video>' : '<img src="' + esc(f.url) + '" alt="">') + '</div>' +
+      '<div class="btns"><button class="btn primary" data-a="up-share" data-i="' + i + '">Share</button><button class="btn" data-a="up-dl" data-i="' + i + '">Download</button><button class="btn danger" data-a="up-del" data-i="' + i + '">Delete</button></div>');
   }
+  // ---------- captions ----------
+  function captionsList(){
+    var c = settings().captions;
+    if(c && c.length) return c;
+    var b = brand();
+    return [
+      { id: 's1', title: 'New stock', text: 'New designs just in at ' + (b.name || 'our store') + '! Wholesale and bulk orders welcome.' + (b.phone ? ' Call/WhatsApp ' + b.phone + '.' : ''), starter: true },
+      { id: 's2', title: 'Festive offer', text: 'Festive stock is here 🎉 Order early for the best colours. Minimum 10 pcs per design.' + (b.phone ? ' 📞 ' + b.phone : ''), starter: true },
+      { id: 's3', title: 'Reorder reminder', text: 'Running low on bestsellers? Reorder today and we dispatch fast.' + (b.name ? ' — ' + b.name : ''), starter: true }
+    ];
+  }
+  function captionsHtml(){
+    var list = captionsList();
+    return '<div class="btns" style="margin:0 0 12px"><button class="btn primary block" data-a="cap-new">＋ New caption</button></div>' + list.map(function(c){
+      return '<div class="card"><div class="row" style="padding-top:0"><b>' + esc(c.title || 'Caption') + '</b>' + (c.starter ? '<span class="chip">starter</span>' : '') + '</div><div style="white-space:pre-wrap;margin:6px 0">' + esc(c.text) + '</div>' +
+        '<div class="btns"><button class="btn small primary" data-a="cap-copy" data-id="' + esc(c.id) + '">Copy</button><button class="btn small" data-a="cap-wa" data-id="' + esc(c.id) + '">WhatsApp</button><button class="btn small" data-a="cap-edit" data-id="' + esc(c.id) + '">Edit</button>' +
+        (c.starter ? '' : '<button class="btn small danger" data-a="cap-del" data-id="' + esc(c.id) + '">Delete</button>') + '</div></div>';
+    }).join('');
+  }
+  function captionSheet(id){
+    var c = captionsList().find(function(x){ return x.id === id; }) || { id: '', title: '', text: '' };
+    openSheet('<div class="sheet-h"><div class="t">' + (c.id && !c.starter ? 'Edit caption' : 'New caption') + '</div><button class="x" data-a="close">✕</button></div>' +
+      '<label>Title</label><input id="cap-t" maxlength="40" value="' + esc(c.title) + '" placeholder="e.g. Diwali offer">' +
+      '<label>Caption</label><textarea id="cap-x" maxlength="1500" style="min-height:140px">' + esc(c.text) + '</textarea>' +
+      '<div class="btns"><button class="btn primary block" data-a="cap-save" data-id="' + esc(c.starter ? '' : c.id) + '">Save</button></div>');
+  }
+  // ---------- brand kit ----------
   function brandSheet(){
     var b = brand();
     openSheet('<div class="sheet-h"><div class="t">Brand kit</div><button class="x" data-a="close">✕</button></div>' +
       '<label>Business name</label><input id="bk-name" value="' + esc(b.name) + '">' +
-      '<label>Phone on posts</label><input id="bk-phone" inputmode="tel" value="' + esc(b.phone) + '">' +
+      '<label>Phone</label><input id="bk-phone" inputmode="tel" value="' + esc(b.phone) + '">' +
       '<label>Tagline (optional)</label><input id="bk-tag" maxlength="60" placeholder="e.g. Toys wholesale · Sadar Bazar" value="' + esc(b.tagline) + '">' +
       '<div class="grid2"><div><label>Brand colour</label><input id="bk-color" type="color" value="' + esc(b.color) + '" style="height:48px;padding:4px"></div>' +
       '<div><label>Logo</label><label class="btn small" style="margin:0;width:100%">' + (b.logo ? 'Change logo' : 'Upload logo') + '<input id="bk-logo" type="file" accept="image/*" style="display:none"></label></div></div>' +
@@ -2470,6 +2645,8 @@
       if(kpp) document.getElementById('kit-text').value = caption(kpp);
       return;
     }
+    var pms = e.target.closest('[data-pmseg]'); if(pms){ pm.seg = pms.getAttribute('data-pmseg'); pm.select = false; pm.sel = {}; renderAll(); return; }
+    var afb = e.target.closest('[data-af]'); if(afb){ pm.af = afb.getAttribute('data-af'); pm.select = false; pm.sel = {}; renderAll(); return; }
     var sg = e.target.closest('[data-seg]');
     if(sg){ shopSeg = sg.getAttribute('data-seg'); renderAll(); return; }
     var os = e.target.closest('[data-oseg]');
@@ -2564,20 +2741,68 @@
       toast('Customer saved');
     }
     else if(act === 'del-customer'){ if(confirm('Delete this customer? Their past invoices stay.')){ remove('customers', id); closeSheet(); renderAll(); } }
-    // promote
-    else if(act === 'promo-new'){ var pid = a.getAttribute('data-id'), pids = a.getAttribute('data-ids'); promo.ids = pids ? pids.split(',').filter(product).slice(0, 4) : pid && product(pid) ? [pid] : []; promoSheet(); }
-    else if(act === 'promo-del'){ promo.ids = promo.ids.filter(function(x){ return x !== id; }); promoSheet(); }
-    else if(act === 'promo-fmt'){ promo.fmt = a.getAttribute('data-v'); promoSheet(); }
-    else if(act === 'promo-share') await promoShare('share');
-    else if(act === 'promo-wa') await promoShare('whatsapp');
-    else if(act === 'promo-save') await promoShare('save');
-    else if(act === 'promo-copy') copyText(val('promo-cap'), 'Caption copied');
+    // promote: links, orders, assets, captions, brand
+    else if(act === 'link-new'){ linkDraft = { name: 'Catalogue ' + fmtDate(today()), which: 'all', picked: {}, adjust: 0, note: '' }; linkSheet(); }
+    else if(act === 'link-create') await createLink(a);
+    else if(act === 'link-share') shareLink(id);
+    else if(act === 'link-copy') copyText(linkUrl(id), 'Link copied');
+    else if(act === 'link-toggle'){ var lt = pm.links.find(function(x){ return x.id === id; }); if(lt && await updateLink(id, { active: !lt.active })){ renderAll(); toast(lt.active ? 'Link is live' : 'Link paused'); } }
+    else if(act === 'link-del'){ var ld = pm.links.find(function(x){ return x.id === id; }); if(ld && confirm('Delete “' + ld.name + '”? The link stops working and its orders are removed.')){ var rd = await sb.from('catalog_shares').delete().eq('id', id); if(rd.error) toast(friendlyErr(rd.error)); else { pm.links = pm.links.filter(function(x){ return x.id !== id; }); pm.orders = pm.orders.filter(function(o){ return o.share_id !== id; }); renderAll(); toast('Link deleted'); } } }
+    else if(act === 'link-refresh'){
+      var lr = pm.links.find(function(x){ return x.id === id; }); if(!lr) return;
+      var keep = {}; (lr.data.items || []).forEach(function(it){ keep[it.id] = 1; });
+      var items = linkItems('pick', keep, lr.data.adjust);
+      if(await updateLink(id, { data: linkData(items, lr.data.adjust, lr.data.note) })){ renderAll(); toast('Prices and brand updated on the link'); }
+    }
+    else if(act === 'sorder') sorderSheet(id);
+    else if(act === 'sorder-st'){ if(await setOrderStatus(id, a.getAttribute('data-v'))){ sorderSheet(id); renderAll(); toast(a.getAttribute('data-v') === 'confirmed' ? 'Confirmed' : 'Declined'); } }
+    else if(act === 'sorder-wa'){ var ow = pm.orders.find(function(x){ return x.id === id; }); if(ow){ var digits = String(ow.buyer_phone || '').replace(/\D/g, ''); if(digits.length === 10) digits = '91' + digits; window.open('https://wa.me/' + digits + '?text=' + encodeURIComponent('Hi ' + ow.buyer_name + ', thanks for your order of ' + money(ow.total) + ' from ' + (brand().name || 'us') + '. ' + (ow.status === 'confirmed' ? 'It’s confirmed — we’ll update you on delivery.' : 'We’ll confirm it shortly.')), '_blank'); } }
+    else if(act === 'sorder-inv') orderToInvoice(id);
+    else if(act === 'sorder-cart'){
+      var oc2 = pm.orders.find(function(x){ return x.id === id; }); if(!oc2) return; var added = 0;
+      (oc2.lines || []).forEach(function(x){ var pp = product(x.id); if(!pp) return; var ex = store.cart.find(function(c){ return c.productId === pp.id; }); if(ex) ex.qty = Math.max(ex.qty, x.qty); else store.cart.push({ productId: pp.id, qty: Math.max(T().minPerProduct, num(x.qty)), color: '' }); added++; });
+      save(); closeSheet(); tab = 'cart'; renderAll(); window.scrollTo(0, 0); toast(added ? added + ' product' + (added === 1 ? '' : 's') + ' in your cart' : 'None of these are in the Thread Tribe shop');
+    }
+    else if(act === 'a-view') assetSheet(a.getAttribute('data-u'), id);
+    else if(act === 'asel'){ pm.select = !pm.select; pm.sel = {}; renderAll(); }
+    else if(act === 'asel-one'){ var su = a.getAttribute('data-u'); pm.sel[su] = !pm.sel[su]; renderAll(); }
+    else if(act === 'asel-save'){ var ss = Object.keys(pm.sel).filter(function(k){ return pm.sel[k]; }); toggleSaved(ss, true); pm.select = false; pm.sel = {}; renderAll(); toast(ss.length + ' saved'); }
+    else if(act === 'asel-dl' || act === 'asel-share'){
+      var su2 = Object.keys(pm.sel).filter(function(k){ return pm.sel[k]; }).slice(0, 20); a.disabled = true; toast('Preparing ' + su2.length + '…');
+      var files = [];
+      for(var fi = 0; fi < su2.length; fi++){ var bl = await assetBlob(su2[fi], false); if(bl) files.push(fileFor(bl, 'Photo ' + (fi + 1))); }
+      a.disabled = false;
+      if(act === 'asel-dl') files.forEach(function(f, i){ setTimeout(function(){ download(f); }, i * 400); }); else await shareFiles(files, '');
+    }
+    else if(act === 'av-save'){ if(viewing){ var was = savedAssets().indexOf(viewing.u) !== -1; toggleSaved([viewing.u], !was); a.textContent = was ? '☆ Save' : '★ Saved'; renderAll(); } }
+    else if(act === 'av-dl' || act === 'av-share'){
+      if(!viewing) return; var vb = await assetBlob(viewing.u, pm.stamp);
+      if(!vb){ toast('Couldn’t get that photo — try again'); return; }
+      var vf = fileFor(vb, viewing.p ? viewing.p.name : 'photo');
+      if(act === 'av-dl'){ download(vf); toast('Saved'); } else await shareFiles([vf], viewing.p ? captionFor(viewing.p) : '');
+    }
+    else if(act === 'av-cap'){ if(viewing && viewing.p) copyText(captionFor(viewing.p), 'Caption copied'); }
+    else if(act === 'up-view') uploadSheet(+a.getAttribute('data-i'));
+    else if(act === 'up-dl' || act === 'up-share'){ var uf = pm.uploads[+a.getAttribute('data-i')]; if(!uf) return; var ub = await assetBlob(uf.url, false); if(!ub){ toast('Couldn’t get that file'); return; } var ufile = fileFor(ub, uf.name.replace(/^[a-z0-9]+-/, '').replace(/\.[a-z0-9]+$/i, '')); if(act === 'up-dl') download(ufile); else await shareFiles([ufile], ''); }
+    else if(act === 'up-del'){ var ud = pm.uploads[+a.getAttribute('data-i')]; if(ud && confirm('Delete this file?')){ var rr = await sb.storage.from('partner-assets').remove([ud.path]); if(rr.error) toast(friendlyErr(rr.error)); else { closeSheet(); await loadUploads(); renderAll(); toast('Deleted'); } } }
+    else if(act === 'cap-new') captionSheet('');
+    else if(act === 'cap-edit') captionSheet(id);
+    else if(act === 'cap-copy' || act === 'cap-wa'){ var cc = captionsList().find(function(x){ return x.id === id; }); if(cc){ if(act === 'cap-copy') copyText(cc.text, 'Caption copied'); else window.open('https://wa.me/?text=' + encodeURIComponent(cc.text), '_blank'); } }
+    else if(act === 'cap-del'){ if(confirm('Delete this caption?')){ saveSettings({ captions: (settings().captions || []).filter(function(x){ return x.id !== id; }) }); renderAll(); } }
+    else if(act === 'cap-save'){
+      var ct = val('cap-t'), cx = val('cap-x'); if(!cx){ toast('Write the caption'); return; }
+      var caps = (settings().captions || []).slice(), ci = caps.findIndex(function(x){ return x.id === id; });
+      var rec = { id: id || uid(), title: (ct || 'Caption').slice(0, 40), text: cx.slice(0, 1500) };
+      if(ci === -1) caps.unshift(rec); else caps[ci] = rec;
+      saveSettings({ captions: caps.slice(0, 100) }); closeSheet(); renderAll(); toast('Caption saved');
+    }
     else if(act === 'brand-edit'){ pendingLogo = null; brandSheet(); }
     else if(act === 'brand-save'){
       var bp = { bizName: val('bk-name'), phone: val('bk-phone'), tagline: val('bk-tag').slice(0, 60), brandColor: val('bk-color') || '#1f9e93' };
       if(pendingLogo) bp.logo = pendingLogo;
       saveSettings(bp); pendingLogo = null; closeSheet(); renderAll(); toast('Brand kit saved');
     }
+    else if(act === 'promo-orders'){ closeSheet(); tab = 'promote'; pm.seg = 'orders'; renderAll(); window.scrollTo(0, 0); }
     else if(act === 'add-cslab'){
       var mn = Math.round(num(val('csMin'))), pc = Math.max(0, Math.min(100, num(val('csPct'))));
       if(mn < 1 || !pc){ toast('Enter pieces and a discount %'); return; }
@@ -2633,14 +2858,16 @@
     }
     else if(t.id === 'markup'){ saveSettings({ markup: Math.max(0, num(t.value)) }); renderAll(); }
     else if(t.id === 'maxCust'){ saveSettings({ maxCustDiscount: Math.max(0, Math.min(100, num(t.value))) }); toast('Saved'); }
-    else if(t.id === 'promo-add' && t.value){ if(promo.ids.length < 4) promo.ids.push(t.value); promoSheet(); }
-    else if(t.id === 'promo-price'){ promo.price = t.checked; promoSheet(); }
+    else if(t.id === 'ln-which'){ readLinkForm(); linkSheet(); }
+    else if(t.id === 'ln-adj'){ readLinkForm(); linkSheet(); }
+    else if(t.id === 'up-files'){ var upl = Array.prototype.slice.call(t.files || []); t.value = ''; if(upl.length) uploadAssets(upl); }
+    else if(t.id === 'av-stamp'){ pm.stamp = t.checked; if(t.checked) drawStamp(); else { var c1 = document.getElementById('av-cv'), i1 = document.getElementById('av-img'); if(c1) c1.style.display = 'none'; if(i1) i1.style.display = ''; } }
     else if(t.id === 'bk-logo' && t.files && t.files[0]){ var lf = t.files[0]; t.value = ''; shrinkLogo(lf).then(function(d){ pendingLogo = d; var bpv = document.getElementById('bk-prev'); if(bpv) bpv.innerHTML = d ? '<img src="' + d + '" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">' : ''; }); }
   });
   document.addEventListener('input', function(e){
     var id = e.target.id;
-    if(id === 'q' || id === 'bq' || id === 'sq'){
-      if(id === 'q') shopQuery = e.target.value; else bizQuery = e.target.value;
+    if(id === 'q' || id === 'bq' || id === 'sq' || id === 'aq'){
+      if(id === 'q') shopQuery = e.target.value; else if(id === 'aq') pm.aq = e.target.value; else bizQuery = e.target.value;
       var pos = e.target.selectionStart;
       renderAll();
       var el = document.getElementById(id); if(el){ el.focus(); try{ el.setSelectionRange(pos, pos); }catch(err){} }

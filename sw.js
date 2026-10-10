@@ -3,7 +3,7 @@
 // GitHub Pages lets browsers keep files for 10 minutes (max-age=600); the app page and
 // config are always revalidated with the server (cache: 'no-cache') so updates arrive on
 // the next open instead of up to 10 minutes later.
-const VERSION = 'tt-buyer-202610112145';
+const VERSION = 'tt-buyer-202610112300';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './config.js', './vendor/supabase.js'];
 const THIRD_PARTY = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com'];
 
@@ -36,6 +36,9 @@ self.addEventListener('fetch', function(e){
     e.respondWith(fetch(req.url, { cache: 'no-cache' }).then(function(res){ return putInCache(req, res); }).catch(function(){ return caches.match(req); }));
     return;
   }
+
+  // Public catalogue links (s.html) are for brand partners' buyers: always from the network, never cached as the app.
+  if(url.origin === location.origin && /\/s\.html$/.test(url.pathname)) return;
 
   // The app page itself: try the network first so updates arrive, fall back to the cached copy offline.
   if(req.mode === 'navigate' && url.origin === location.origin){
