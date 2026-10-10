@@ -467,7 +467,7 @@
   // ---------- website toys ----------
   // The app also reads threadtribe.co directly, so every toy on the store shows even
   // before Thread Tribe's Studio has republished this buyer's pack. Toys the pack
-  // prices keep that price; the rest are "price on request".
+  // prices keep that price; products with no MRP anywhere aren't shown.
   var SHOP_URL = 'https://threadtribe.co', WEB_KEY = 'tt-buyer-web-shop-v3';
   var WEB = { items: [], at: 0, loading: false };
   try{ var wc = JSON.parse(localStorage.getItem(WEB_KEY)); if(wc && Array.isArray(wc.items)){ WEB.items = wc.items; WEB.at = wc.at || 0; } }catch(e){}
@@ -524,8 +524,11 @@
     });
     WEB.items.forEach(function(w){
       if(ids['web:' + w.handle] || byName[nameKey(w.name)]) return;
-      out.push({ id: 'web:' + w.handle, name: w.name, category: w.category, kind: /toy|clicker/i.test(w.category) ? 'toy' : 'goods', weight: 0, hours: 0, color: '', size: '', material: '', photo: w.photo, base: 0, price: 0, retail: w.retail, onRequest: true, published: w.published || '', images: w.images || [], desc: w.desc || '' });
+      var mrp = Math.round(w.retail || 0);
+      out.push({ id: 'web:' + w.handle, name: w.name, category: w.category, kind: /toy|clicker/i.test(w.category) ? 'toy' : 'goods', weight: 0, hours: 0, color: '', size: '', material: '', photo: w.photo, base: mrp, price: mrp, retail: mrp, onRequest: !(mrp > 0), published: w.published || '', images: w.images || [], desc: w.desc || '' });
     });
+    // Every product is priced from its MRP; anything without one isn't offered.
+    out = out.filter(function(p){ return p.base > 0; });
     catCache = { key: key, list: out };
     return out;
   }
@@ -1245,7 +1248,7 @@
   function renderShop(){
     var cat = catalogue(), f = store.filt, items = shopList(), n = activeFilters(), t = T();
     var hasRetail = cat.some(function(p){ return p.retail; });
-    var slabTxt = t.slabs.length ? ' Bigger purchase orders get more off — mix any products.' : '';
+    var slabTxt = t.slabs.length ? ' The more of a product you order, the lower its price — down to ' + T().maxDiscount + '% off MRP.' : '';
     return '<div class="seg"><button data-seg="all" class="' + (shopSeg === 'all' ? 'on' : '') + '">All<span class="n">' + cat.length + '</span></button>' +
       ((pack().trending || []).length ? '<button data-seg="trending" class="' + (shopSeg === 'trending' ? 'on' : '') + '">🔥 Trending</button>' : '') +
       (cat.some(isNew) ? '<button data-seg="new" class="' + (shopSeg === 'new' ? 'on' : '') + '">✨ New<span class="n">' + cat.filter(isNew).length + '</span></button>' : '') +
@@ -1257,14 +1260,12 @@
       '<div class="tools"><select id="sortSel" aria-label="Sort">' + Object.keys(SORTS).filter(function(k){ return k !== 'margin' || hasRetail; }).map(function(k){
         return '<option value="' + k + '"' + (f.sort === k ? ' selected' : '') + '>' + SORTS[k] + '</option>'; }).join('') + '</select>' +
       '<button class="btn small" data-a="filters">Filter' + (n ? ' · ' + n : '') + '</button><button class="btn small" data-a="share-catalog">Share</button></div>' + filterChips() +
-      '<p class="muted" style="margin:0 4px 10px;">' + items.length + ' product' + (items.length === 1 ? '' : 's') + ' · your price per piece, ex-GST. Min ' + t.minPerProduct + ' per product, ' + t.minOrder + ' per order.' + slabTxt + '</p>' +
+      '<p class="muted" style="margin:0 4px 10px;">' + items.length + ' product' + (items.length === 1 ? '' : 's') + ' · your price per piece at ' + t.minPerProduct + ' pcs, ex-GST. Min ' + t.minPerProduct + ' per product.' + slabTxt + '</p>' +
       (items.length ? '<div class="grid">' + (function(){ var rank = trendRank(); return items.map(function(p){
         var price = costOf(p), m = margin(p);
         return '<button class="prod" data-a="product" data-id="' + esc(p.id) + '"><div class="ph">' + badges(p, rank) + (p.photo ? '<img loading="lazy" alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
           '<div class="b"><div class="n">' + esc(p.name) + '</div><div class="w">' + esc([p.weight ? Math.round(p.weight) + ' g' : '', p.color].filter(Boolean).join(' · ')) + '</div>' +
-          (onRequest(p) ? '<div class="p por">Price on request</div>' + (p.retail ? '<div class="w">MRP ' + money(p.retail) + '</div>' : '')
-            : '<div class="p">' + money(price) + (price < p.base ? '<s>' + money(p.base) + '</s>' : '') + '</div>' +
-              '<div class="mg">From ' + money(priceAt(p, T().maxDiscount)) + ' in bulk · MRP ' + money(p.base) + '</div>') + '</div></button>';
+          '<div class="p">' + money(price) + '</div><div class="mg">MRP ' + money(p.base) + ' · from ' + money(priceAt(p, T().maxDiscount)) + ' in bulk</div></div></button>';
       }).join(''); })() + '</div>' : '<div class="card empty"><b>Nothing matches</b>Try another search or clear the filters.' + (n ? '<div class="btns" style="justify-content:center;"><button class="btn small" data-a="clear-filters">Clear filters</button></div>' : '') + '</div>');
   }
   // ======================= share a catalogue under the reseller's own name =======================
@@ -1489,7 +1490,7 @@
     }
     var each = priceAt(p, pct), sum = each * n, saved = (p.base - each) * n, mg = pct > 0 && pct < 100 ? Math.round(100 * pct / (100 - pct)) : 0;
     var ladder = '<div class="ladder">' + slabRowsFor().map(function(s){ return '<i class="' + (pct >= s.pct && n >= s.min ? (s.pct === pct ? 'now' : 'got') : '') + '" title="' + s.min + '+ pcs">' + s.pct + '%</i>'; }).join('') + '</div>';
-    el.innerHTML = '<div class="pl-top"><span class="pl-price">' + money(each) + ' <small>/ pc</small>' + (each < p.base ? ' <s>' + money(p.base) + '</s>' : '') + '</span>' +
+    el.innerHTML = '<div class="pl-top"><span class="pl-price">' + money(each) + ' <small>/ pc · MRP ' + money(p.base) + '</small></span>' +
       (pct ? '<span class="pl-badge">' + pct + '% off</span>' : '<span class="pl-badge none">No discount yet</span>') + '</div>' +
       '<div class="pl-sub">' + n.toLocaleString('en-IN') + ' pcs = <b>' + money(sum) + '</b> ex-GST' + (saved > 0 ? ' · <span class="pl-save">you save ' + money(saved) + ' vs MRP</span>' : '') + '</div>' +
       (mg ? '<div class="pl-sub">Your margin if you sell at MRP: <b>' + mg + '%</b></div>' : '') + ladder +
@@ -1525,7 +1526,7 @@
     if(ct.lines.some(function(x){ return x.l.qty < t.minPerProduct; })) problems.push('Each product needs at least ' + t.minPerProduct + ' pieces.');
     return '<div class="card">' + rows + '</div>' +
       '<div class="card sum" style="margin-top:12px"><div class="row"><span>' + ct.qty.toLocaleString('en-IN') + ' pieces</span><span class="r">' + (ct.pct ? ct.pct + '% off MRP overall' : '') + '</span></div>' +
-      (ct.list > 0 ? '<div class="row"><span class="muted">MRP value</span><span class="r muted" style="text-decoration:line-through">' + money(ct.list) + '</span></div>' : '') +
+      (ct.list > 0 ? '<div class="row"><span class="muted">MRP value</span><span class="r muted">' + money(ct.list) + '</span></div>' : '') +
       (ct.saved > 0 ? '<div class="row"><span class="muted">You save</span><span class="r" style="color:var(--green)">' + money(ct.saved) + '</span></div>' : '') +
       '<div class="row"><span>Subtotal (ex-GST)' + (ct.por ? ' <span class="muted">· ' + ct.por + ' on request not included</span>' : '') + '</span><span class="r">' + money(ct.sub) + '</span></div>' +
       (gstRate ? '<div class="row"><span class="muted">GST ' + gstRate + '%</span><span class="r muted">' + money(gst) + '</span></div><div class="row"><span>Estimated total</span><span class="r">' + money(ct.sub + gst) + '</span></div>' : '') + '</div>' +
