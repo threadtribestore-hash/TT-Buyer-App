@@ -387,7 +387,7 @@
   <button data-tab="shop"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Shop</button>
   <button data-tab="orders"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Purchases</button>
   <button data-tab="business"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Business</button>
-  <button data-tab="stock"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/></svg>Stock<span class="nbadge hidden" id="stockBadge"></span></button>
+  <button data-tab="quotes"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/></svg>Quotes</button>
 </nav>
 <div class="scrim hidden" id="scrim"></div>
 <div class="sheet hidden" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
@@ -418,7 +418,7 @@
   var PAY = { unpaid: 'Unpaid', partial: 'Part paid', paid: 'Paid', refunded: 'Refunded', cancelled: 'Cancelled' };
   var SORTS = { recommended: 'Recommended', price_asc: 'Price: low to high', price_desc: 'Price: high to low', margin: 'Best margin',
     name: 'Name A–Z', light: 'Lightest first', heavy: 'Heaviest first', quick: 'Quickest to make' };
-  var COLLS = ['customers', 'invoices', 'prices', 'stock', 'settings'];
+  var COLLS = ['customers', 'invoices', 'prices', 'quotes', 'settings'];
 
   function blankFilt(){ return { sort: 'recommended', min: '', max: '', ordered: false, retailOnly: false }; }
   function blankDocs(){ var d = {}; COLLS.forEach(function(c){ d[c] = {}; }); return d; }
@@ -631,25 +631,36 @@
     store.docs = fresh;
   }
   function put(coll, id, data){
+    if(!store.docs[coll]) store.docs[coll] = {};
     store.docs[coll][id] = data;
     store.pending = store.pending.filter(function(p){ return !(p.coll === coll && p.id === id); });
     store.pending.push({ coll: coll, id: id, data: data, deleted: false });
     save(); flushDocs();
   }
   function remove(coll, id){
-    delete store.docs[coll][id];
+    if(store.docs[coll]) delete store.docs[coll][id];
     store.pending = store.pending.filter(function(p){ return !(p.coll === coll && p.id === id); });
     store.pending.push({ coll: coll, id: id, data: null, deleted: true });
     save(); flushDocs();
   }
   async function flushDocs(){
     if(!sb || !session || !store.clientId || cloud.flushing || !store.pending.length || cloud.bizMissing) return;
+    // Quotes wait on the phone (still in pending) until buyer_quotes_setup.sql is run; retried hourly.
+    if(store.quotesBlocked && Date.now() - store.quotesBlocked > 3600000) store.quotesBlocked = 0;
+    var send = store.pending.filter(function(p){ return !(store.quotesBlocked && p.coll === 'quotes'); });
+    if(!send.length) return;
     cloud.flushing = true;
-    var batch = store.pending.slice(0, 200);
+    var batch = send.slice(0, 200);
     var r = await sb.from('reseller_docs').upsert(batch.map(function(p){ return { client_id: store.clientId, coll: p.coll, id: p.id, data: p.data, deleted: p.deleted }; }), { onConflict: 'client_id,coll,id' });
     cloud.flushing = false;
-    if(r.error){ setTimeout(flushDocs, 20000); return; }
+    if(r.error){
+      if(/coll_check|check constraint/i.test(r.error.message || '') && batch.some(function(p){ return p.coll === 'quotes'; })){
+        store.quotesBlocked = Date.now(); save(); flushDocs(); return;
+      }
+      setTimeout(flushDocs, 20000); return;
+    }
     store.pending = store.pending.filter(function(p){ return batch.indexOf(p) === -1; });
+    if(batch.some(function(p){ return p.coll === 'quotes'; })) store.quotesBlocked = 0;
     save();
     if(store.pending.length) flushDocs();
   }
@@ -675,27 +686,6 @@
   function custSlabFor(total){ var p = 0; (settings().custSlabs || []).forEach(function(s){ if(total >= s.min) p = s.pct; }); return p; }
   function custDiscount(customer, total){ return Math.min(num(settings().maxCustDiscount) || 100, num(customer && customer.discount) + custSlabFor(total)); }
 
-  // ---------- stock ----------
-  function stockRows(){
-    var s = settings(), start = s.stockStart, by = {};
-    function row(id, name){ if(!by[id]) by[id] = { id: id, name: name, inQty: 0, outQty: 0, adj: 0 }; return by[id]; }
-    if(!start) return [];
-    pack().orders.forEach(function(o){
-      if(o.status !== 'delivered' || (o.deliveryDate || o.orderedDate || '') < start) return;
-      o.lines.forEach(function(l){ if(l.catalogId) row(l.catalogId, l.name).inQty += l.qty; });
-    });
-    list('invoices').forEach(function(inv){
-      // Only invoices raised after tracking began; ones from earlier that same day were already in the opening count.
-      if(inv.status === 'cancelled' || (inv.date || '') < start) return;
-      if(inv.date === start && s.stockStartAt && (inv.createdAt || '') < s.stockStartAt) return;
-      (inv.lines || []).forEach(function(l){ if(l.productId) row(l.productId, l.name).outQty += num(l.qty); });
-    });
-    list('stock').forEach(function(m){ if(m.productId) row(m.productId, m.name).adj += num(m.qty); });
-    return Object.keys(by).map(function(id){ var r = by[id], p = product(id); r.name = p ? p.name : r.name; r.onHand = r.inQty - r.outQty + r.adj; return r; })
-      .sort(function(a, b){ return a.onHand - b.onHand; });
-  }
-  function onHand(id){ var r = stockRows().find(function(x){ return x.id === id; }); return r ? r.onHand : null; }
-  function lowStock(){ var lim = num(settings().lowStock); return stockRows().filter(function(r){ return r.onHand <= lim && product(r.id); }); }
 
   // ======================= sign in =======================
   async function boot(){
@@ -831,14 +821,12 @@
     var navTab = tab === 'cart' ? 'shop' : tab;
     nav.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === navTab); });
     document.getElementById('eyebrow').textContent = pack().client.name || 'Thread Tribe Trade';
-    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Purchases', stock: 'Stock', business: 'Business', account: 'Account' };
+    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Purchases', quotes: 'Quotations', business: 'Business', account: 'Account' };
     document.getElementById('title').textContent = tab === 'home' ? greeting() + ', ' + ((pack().client.contact || pack().client.name || '').split(' ')[0] || 'there') : titles[tab];
-    screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, stock: renderStock, business: renderBusiness, account: renderAccount })[tab]();
+    screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, quotes: renderQuotes, business: renderBusiness, account: renderAccount })[tab]();
     var av = document.getElementById('avatar');
     av.classList.remove('hidden'); av.classList.toggle('on', tab === 'account');
     av.textContent = ((pack().client.contact || pack().client.name || '?').trim().split(/\s+/).map(function(w){ return w[0]; }).join('').slice(0, 2) || '?').toUpperCase();
-    var sb = document.getElementById('stockBadge'), lowN = settings().stockStart ? lowStock().length : 0;
-    sb.textContent = lowN; sb.classList.toggle('hidden', !lowN);
     document.body.classList.toggle('fit', tab === 'home');
     if(store.cart.length && tab !== 'cart'){
       var ct = cartTotals();
@@ -911,6 +899,7 @@
   // how am I doing → what can I do in one tap → what needs me → what's moving → details.
   var ICONS = {
     invoice: '<svg viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg>',
+    quote: '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/></svg>',
     restock: '<svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11h11L21 7H7"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/></svg>',
     share: '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
     catalog: '<svg viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
@@ -937,9 +926,8 @@
     if(replied) out.push({ ic: '💬', cls: 'info', t: 'Thread Tribe replied', s: replied.reply, go: 'orders', seg: 'requests' });
     var od = dues().filter(function(d){ return daysSince(d.oldest) > 15; });
     if(od.length) out.push({ ic: '💰', cls: 'warn', t: money(od.reduce(function(t, d){ return t + d.total; }, 0)) + ' overdue from ' + od.length + ' buyer' + (od.length === 1 ? '' : 's'), s: 'More than 15 days — tap to send reminders', go: 'business', bseg: 'invoices' });
-    var low = lowStock();
-    if(low.length) out.push({ ic: '⚠️', cls: 'warn', t: low.length + ' toy' + (low.length === 1 ? '' : 's') + ' running low', s: low.slice(0, 3).map(function(r){ return r.name + ' (' + r.onHand + ')'; }).join(', '), go: 'stock' });
-    if(!cloud.bizMissing && !settings().stockStart) out.push({ ic: '📦', cls: 'info', t: 'Track your stock', s: 'Know what you have and get low-stock warnings', go: 'stock' });
+    var stale = list('quotes').filter(function(q){ return quoteState(q) === 'open' && daysSince((q.sentAt || q.createdAt || '').slice(0, 10)) >= 3; });
+    if(stale.length) out.push({ ic: '📝', cls: 'info', t: stale.length + ' quote' + (stale.length === 1 ? '' : 's') + ' to follow up', s: stale.slice(0, 2).map(function(q){ return (q.customer && (q.customer.business || q.customer.name)) || q.no; }).join(', ') + ' · no answer for 3+ days', go: 'quotes' });
     var waiting = openRequests().length;
     if(waiting) out.push({ ic: '⏳', cls: '', t: waiting + ' request' + (waiting === 1 ? '' : 's') + ' with Thread Tribe', s: 'They’ll reply here', go: 'orders', seg: 'requests' });
     if(totalDue() > 0) out.push({ ic: '🧾', cls: '', t: money(totalDue()) + ' due to Thread Tribe', s: 'Pay on delivery', go: 'account' });
@@ -963,7 +951,7 @@
     var dueCount = dues().length;
     html += '<div class="qa">' +
       (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>New invoice</button>' : '') +
-      '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>' +
+      (biz ? '<button data-a="new-quote"><span class="qi">' + ICONS.quote + '</span>New quote</button>' : '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>') +
       '<button data-a="share-catalog"><span class="qi">' + ICONS.catalog + '</span>Catalogue</button>' +
       (biz ? '<button data-a="home-collect"><span class="qi">' + ICONS.collect + (dueCount ? '<b class="qb">' + dueCount + '</b>' : '') + '</span>Collect</button>' : '') +
       '</div>';
@@ -1061,9 +1049,8 @@
       out.push({ ic: '🏭', cls: 'info', t: o.displayId + ' being made · ' + (qty ? Math.round(100 * made / qty) : 0) + '%', s: made + ' of ' + qty + ' pcs' + (o.dispatchBy ? ' · ships by ' + fmtDate(o.dispatchBy) : ''), a: 'order', id: o.id, pct: qty ? made / qty : 0 });
     });
     collectionsLive().forEach(function(c){ out.push({ ic: '🎁', cls: 'good', t: c.name, s: (c.items || []).length + ' toys' + (c.note ? ' · ' + c.note : ''), a: 'open-seg', v: 'col:' + c.id }); });
-    // urgency: shipments and money first, then stock and replies, then the rest
-    var rank = { '🚚': 1, '📦': 2, '💰': 3, '⚠️': 4, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
-    out.forEach(function(x){ if(x.t === 'Track your stock') x.ic2 = 1; });
+    // urgency: shipments and money first, then quotes and replies, then the rest
+    var rank = { '🚚': 1, '📦': 2, '💰': 3, '📝': 4, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
     return out.sort(function(a, b){ return (rank[a.ic] || 9) - (rank[b.ic] || 9); });
   }
   function attRow(x){
@@ -1221,7 +1208,7 @@
     var f = store.filt, chips = [];
     if(f.min !== '' || f.max !== '') chips.push('<button class="fchip" data-a="unfilter" data-k="price">' + (f.min !== '' ? money(f.min) : '₹0') + ' – ' + (f.max !== '' ? money(f.max) : 'any') + ' ✕</button>');
     if(f.ordered) chips.push('<button class="fchip" data-a="unfilter" data-k="ordered">Ordered before ✕</button>');
-    if(f.retailOnly) chips.push('<button class="fchip" data-a="unfilter" data-k="retail">With retail price ✕</button>');
+    if(f.retailOnly) chips.push('<button class="fchip" data-a="unfilter" data-k="retail">With MRP ✕</button>');
     return chips.length ? '<div class="fchips">' + chips.join('') + '<button class="link" data-a="clear-filters">Clear all</button></div>' : '';
   }
   function renderShop(){
@@ -1244,9 +1231,9 @@
         var price = costOf(p), m = margin(p);
         return '<button class="prod" data-a="product" data-id="' + esc(p.id) + '"><div class="ph">' + badges(p, rank) + (p.photo ? '<img loading="lazy" alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
           '<div class="b"><div class="n">' + esc(p.name) + '</div><div class="w">' + esc([p.weight ? Math.round(p.weight) + ' g' : '', p.color].filter(Boolean).join(' · ')) + '</div>' +
-          (onRequest(p) ? '<div class="p por">Price on request</div>' + (p.retail ? '<div class="w">Retail ' + money(p.retail) + '</div>' : '')
+          (onRequest(p) ? '<div class="p por">Price on request</div>' + (p.retail ? '<div class="w">MRP ' + money(p.retail) + '</div>' : '')
             : '<div class="p">' + money(price) + (price < p.base ? '<s>' + money(p.base) + '</s>' : '') + '</div>' +
-              (m ? '<div class="mg">Retail ' + money(p.retail) + ' · ' + m.toFixed(1) + '× margin</div>' : '')) + stockTag(p) + '</div></button>';
+              (m ? '<div class="mg">MRP ' + money(p.retail) + ' · ' + m.toFixed(1) + '× margin</div>' : '')) + '</div></button>';
       }).join(''); })() + '</div>' : '<div class="card empty"><b>Nothing matches</b>Try another search or clear the filters.' + (n ? '<div class="btns" style="justify-content:center;"><button class="btn small" data-a="clear-filters">Clear filters</button></div>' : '') + '</div>');
   }
   // ======================= share a catalogue under the reseller's own name =======================
@@ -1336,18 +1323,12 @@
     else window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  function stockTag(p){
-    if(!settings().stockStart) return '';
-    var oh = onHand(p.id);
-    if(oh === null) return '';
-    return '<div class="stag' + (oh <= num(settings().lowStock) ? ' low' : '') + '">' + (oh <= 0 ? 'Out of stock' : 'You have ' + oh) + '</div>';
-  }
   function filterSheet(){
     var f = store.filt;
     openSheet('<div class="sheet-h"><div class="t">Filter</div><button class="x" data-a="close">✕</button></div>' +
       '<label>Your price per piece (₹)</label><div class="grid2"><input id="fmin" type="number" inputmode="numeric" min="0" placeholder="Min" value="' + esc(f.min) + '"><input id="fmax" type="number" inputmode="numeric" min="0" placeholder="Max" value="' + esc(f.max) + '"></div>' +
       '<label class="check"><input type="checkbox" id="ford"' + (f.ordered ? ' checked' : '') + '> Only toys I’ve ordered before</label>' +
-      (catalogue().some(function(p){ return p.retail; }) ? '<label class="check"><input type="checkbox" id="fret"' + (f.retailOnly ? ' checked' : '') + '> Only toys with a suggested retail price</label>' : '') +
+      (catalogue().some(function(p){ return p.retail; }) ? '<label class="check"><input type="checkbox" id="fret"' + (f.retailOnly ? ' checked' : '') + '> Only toys with an MRP</label>' : '') +
       '<div class="btns"><button class="btn primary block" data-a="apply-filters">Show results</button></div>' +
       '<div style="text-align:center"><button class="link" data-a="clear-filters">Clear all filters</button></div>');
   }
@@ -1377,8 +1358,7 @@
       (p.weight ? '<div class="row"><span class="muted">Weight</span><span class="r">' + Math.round(p.weight) + ' g</span></div>' : '') +
       (p.hours ? '<div class="row"><span class="muted">Print time</span><span class="r">' + p.hours + ' hrs / pc</span></div>' : '') +
       (p.size ? '<div class="row"><span class="muted">Size</span><span class="r">' + esc(p.size) + '</span></div>' : '') +
-      (settings().stockStart && onHand(p.id) !== null ? '<div class="row"><span class="muted">In your stock</span><span class="r"' + (onHand(p.id) <= num(settings().lowStock) ? ' style="color:var(--amber)"' : '') + '>' + onHand(p.id) + ' pcs</span></div>' : '') +
-      (p.retail ? '<div class="row"><span class="muted">Suggested retail</span><span class="r">' + money(p.retail) + (margin(p) ? ' <span class="muted">· ' + margin(p).toFixed(1) + '× your price</span>' : '') + '</span></div>' : '') +
+      (p.retail ? '<div class="row"><span class="muted">MRP</span><span class="r">' + money(p.retail) + (margin(p) ? ' <span class="muted">· ' + margin(p).toFixed(1) + '× your price</span>' : '') + '</span></div>' : '') +
       '</div>' +
       '<label>Quantity (min ' + t.minPerProduct + ')</label><div class="qty"><button data-a="qty-" type="button">−</button><input id="pq" type="number" inputmode="numeric" min="' + t.minPerProduct + '" step="1" value="' + qty + '"><button data-a="qty+" type="button">+</button></div>' +
       '<div class="qchips">' + chips.map(function(v){ return '<button type="button" class="qchip" data-a="set-qty" data-v="' + v + '">' + v + '</button>'; }).join('') + '</div>' +
@@ -1662,13 +1642,13 @@
     toast(added + ' item' + (added === 1 ? '' : 's') + ' added at today’s prices' + (missing ? ' · ' + missing + ' no longer available' : ''));
   }
 
-  // ======================= business: invoices, customers, stock, prices =======================
+  // ======================= business: invoices, customers, prices =======================
   function renderBusiness(){
-    if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on invoicing and stock for your account.</div>';
+    if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on invoicing for your account.</div>';
     var invs = list('invoices'), custs = list('customers');
     return '<div class="seg">' + [['invoices', 'Invoices', invs.length], ['customers', 'Customers', custs.length], ['prices', 'Prices & discounts', null]].map(function(s){
       return '<button data-bseg="' + s[0] + '" class="' + (bizSeg === s[0] ? 'on' : '') + '">' + s[1] + (s[2] !== null ? '<span class="n">' + s[2] + '</span>' : '') + '</button>';
-    }).join('') + '</div>' + ({ invoices: renderInvoices, customers: renderCustomers, prices: renderPrices })[bizSeg === 'stock' ? 'invoices' : bizSeg]();
+    }).join('') + '</div>' + ({ invoices: renderInvoices, customers: renderCustomers, prices: renderPrices })[bizSeg]();
   }
   function invStatus(i){
     if(i.status === 'cancelled') return 'cancelled';
@@ -1690,7 +1670,7 @@
         return '<button class="item" data-a="invoice" data-id="' + esc(i.id) + '"><div class="body"><div class="t">' + esc(i.no) + ' · ' + esc(c.business || c.name || 'Walk-in') + '</div>' +
           '<div class="s">' + fmtDate(i.date) + ' · ' + (i.lines || []).reduce(function(s, l){ return s + num(l.qty); }, 0) + ' pcs</div></div>' +
           '<span class="amt">' + money(i.total) + '</span><span class="chip ' + (st === 'paid' ? 'ok' : st === 'cancelled' ? 'bad' : st === 'partial' ? 'soon' : 'new') + '">' + PAY[st] + '</span></button>';
-      }).join('') : '<div class="card empty"><b>No invoices yet</b>Bill your buyers here — GST worked out for you, stock updated automatically.</div>');
+      }).join('') : '<div class="card empty"><b>No invoices yet</b>Bill your buyers here — GST worked out for you.</div>');
   }
   function renderCustomers(){
     var q = bizQuery.toLowerCase(), invs = list('invoices');
@@ -1720,7 +1700,7 @@
       '<input class="search" id="bq" type="search" placeholder="Search toys" value="' + esc(bizQuery) + '">' +
       '<div class="card">' + cat.filter(function(p){ return !q || p.name.toLowerCase().indexOf(q) !== -1; }).map(function(p){
         var o = store.docs.prices[p.id], custom = o && o.sell > 0, sell = sellPrice(p), cost = costOf(p);
-        return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(p.name) + '</div><div class="muted">you buy at ' + money(cost) + ' · margin ' + money(sell - cost) + (p.retail ? ' · retail ' + money(p.retail) : '') + '</div></div>' +
+        return '<div class="row"><div style="min-width:0"><div style="font-weight:600">' + esc(p.name) + '</div><div class="muted">you buy at ' + money(cost) + ' · margin ' + money(sell - cost) + (p.retail ? ' · MRP ' + money(p.retail) : '') + '</div></div>' +
           '<input type="number" min="0" data-sell="' + esc(p.id) + '" value="' + (custom ? o.sell : '') + '" placeholder="' + sell + '" style="width:96px;padding:8px;text-align:right"></div>';
       }).join('') + '</div>' +
       '<div class="card"><b>Invoice details</b><p class="muted" style="margin-top:4px">Printed on every invoice you send.</p>' +
@@ -1796,14 +1776,11 @@
       '<label>Customer</label><select id="d-cust"><option value="">Walk-in / no customer</option>' + custs.map(function(x){ return '<option value="' + esc(x.id) + '"' + (x.id === d.customerId ? ' selected' : '') + '>' + esc(x.business || x.name) + (x.city ? ' · ' + esc(x.city) : '') + '</option>'; }).join('') + '<option value="__new">+ Add a new customer…</option></select>' +
       '<div class="grid2"><div><label>Date</label><input id="d-date" type="date" value="' + esc(d.date) + '"></div><div><label>GST %</label><input id="d-gst" type="number" min="0" step="0.5" value="' + esc(d.gstRate) + '"></div></div>' +
       '<label>Items</label><div class="lines">' + (d.lines.length ? d.lines.map(function(l, i){
-        var oh = l.productId ? onHand(l.productId) : null;
-        return '<div class="ln"><div style="min-width:0"><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">₹<input type="number" min="0" data-lrate="' + i + '" value="' + l.rate + '" style="width:80px;padding:4px 6px;display:inline-block;text-align:right"> each' +
-          (oh !== null && num(l.qty) > oh ? ' · <span style="color:var(--amber)">' + oh + ' in stock</span>' : '') + '</div></div>' +
+        return '<div class="ln"><div style="min-width:0"><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">₹<input type="number" min="0" data-lrate="' + i + '" value="' + l.rate + '" style="width:80px;padding:4px 6px;display:inline-block;text-align:right"> each</div></div>' +
           '<input type="number" min="1" data-lqty="' + i + '" value="' + l.qty + '"><button class="x" data-a="del-line" data-i="' + i + '">✕</button></div>';
       }).join('') : '<p class="muted" style="padding:8px 0">No items yet.</p>') + '</div>' +
       '<label>Add a toy</label><select id="d-add"><option value="">Choose…</option>' + catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); }).map(function(p){
-        var oh = onHand(p.id);
-        return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' — ' + money(sellPrice(p)) + (oh !== null ? ' · ' + oh + ' in stock' : '') + '</option>'; }).join('') + '<option value="__custom">Something else (type it)…</option></select>' +
+        return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' — ' + money(sellPrice(p)) + '</option>'; }).join('') + '<option value="__custom">Something else (type it)…</option></select>' +
       '<div class="card sum" style="margin-top:14px">' +
       '<div class="row"><span>' + c.qty + ' pcs · subtotal</span><span class="r">' + money2(c.sub) + '</span></div>' +
       (c.pct ? '<div class="row"><span class="muted">Discount ' + c.pct + '%</span><span class="r">−' + money2(c.discountAmt) + '</span></div>' : '') +
@@ -1847,6 +1824,7 @@
     if(prev){ var paidBefore = (prev.payments || []).reduce(function(t, p){ return t + num(p.amount); }, 0); inv.paid = Math.min(c.total, Math.max(paidBefore, d.paid || 0)); }
     put('invoices', id, inv);
     if(!editing) saveSettings({ nextNo: num(s.nextNo) + 1 });
+    if(d.fromQuote && (store.docs.quotes || {})[d.fromQuote]) setQuote(d.fromQuote, { status: 'invoiced', invoiceId: id, decidedAt: (store.docs.quotes || {})[d.fromQuote].decidedAt || new Date().toISOString() });
     draft = null; closeSheet(); bizSeg = 'invoices'; tab = 'business'; renderAll();
     showInvoice(id);
   }
@@ -1870,7 +1848,7 @@
     put('invoices', id, i); toast('Payment recorded'); showInvoice(id); renderAll();
   }
   function cancelInvoice(id){
-    var i = store.docs.invoices[id]; if(!i || !confirm('Cancel invoice ' + i.no + '? Its pieces go back into stock. The number is not reused.')) return;
+    var i = store.docs.invoices[id]; if(!i || !confirm('Cancel invoice ' + i.no + '? The number is not reused.')) return;
     put('invoices', id, Object.assign({}, i, { status: 'cancelled' }));
     document.getElementById('inv').classList.add('hidden'); renderAll(); toast('Invoice cancelled');
   }
@@ -2029,46 +2007,158 @@
     window.open('https://wa.me/' + (phone.length >= 11 ? phone : '') + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  // ---- stock ----
-  // ======================= stock (its own tab) =======================
-  var stockQuery = '';
-  function renderStock(){
-    if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on stock for your account.</div>';
-    var s = settings();
-    if(!s.stockStart) return '<div class="card stock-intro"><div style="font-size:34px">📦</div><b>Know what you have, without counting</b>' +
-      '<p class="muted" style="margin-top:6px">Stock goes up when a Thread Tribe purchase is delivered and down when you invoice a buyer. You get a warning before a toy runs out, and one tap to reorder it.</p>' +
-      '<p class="muted">Start today, then enter what you have on hand right now.</p>' +
-      '<div class="btns"><button class="btn primary block" data-a="start-stock">Start tracking my stock</button></div></div>';
-    var rows = stockRows(), lim = num(s.lowStock), q = stockQuery.toLowerCase();
-    var pcs = rows.reduce(function(t, r){ return t + Math.max(0, r.onHand); }, 0);
-    var value = rows.reduce(function(t, r){ var p = product(r.id); return t + (p && !onRequest(p) ? Math.max(0, r.onHand) * costOf(p) : 0); }, 0);
-    var low = rows.filter(function(r){ return r.onHand <= lim; });
-    var maxOn = Math.max.apply(null, rows.map(function(r){ return r.onHand; }).concat([lim * 3, 1]));
-    var shown = rows.filter(function(r){ return !q || r.name.toLowerCase().indexOf(q) !== -1; });
-    return '<div class="stats stats3"><div class="stat"><div class="k">On hand</div><div class="v">' + pcs.toLocaleString('en-IN') + '</div><div class="s">pieces</div></div>' +
-      '<div class="stat"><div class="k">Worth</div><div class="v">' + money(value) + '</div><div class="s">at your cost</div></div>' +
-      '<button class="stat" data-a="stock-low"><div class="k">Running low</div><div class="v"' + (low.length ? ' style="color:var(--amber)"' : '') + '>' + low.length + '</div><div class="s">below ' + lim + ' pcs</div></button></div>' +
-      (low.length ? '<div class="btns" style="margin:0 0 10px"><button class="btn primary block" data-a="restock-low">Restock all ' + low.length + ' low toys</button></div>' : '') +
-      '<div class="tools"><input id="sq" type="search" placeholder="Search stock" value="' + esc(stockQuery) + '" style="flex:1"><button class="btn small" data-a="adjust-stock">+ Adjust</button></div>' +
-      (shown.length ? '<div class="card stock-list">' + shown.map(function(r){
-        var p = product(r.id), isLow = r.onHand <= lim, w = Math.max(3, Math.min(100, Math.round(100 * Math.max(0, r.onHand) / maxOn)));
-        return '<div class="srow"><div class="s-ph">' + (p && p.photo ? '<img loading="lazy" alt="" src="' + esc(p.photo) + '">' : '🧸') + '</div>' +
-          '<div class="s-b"><div class="s-n">' + esc(r.name) + '</div><div class="s-bar"><i class="' + (isLow ? 'low' : '') + '" style="width:' + w + '%"></i></div>' +
-          '<div class="s-m">in ' + r.inQty + ' · sold ' + r.outQty + (r.adj ? ' · adj ' + (r.adj > 0 ? '+' : '') + r.adj : '') + '</div></div>' +
-          '<div class="s-r"><div class="s-q' + (isLow ? ' low' : '') + '">' + r.onHand + '</div><div class="s-btns"><button data-a="adj-one" data-id="' + esc(r.id) + '" data-sign="-1" aria-label="Remove">−</button><button data-a="adj-one" data-id="' + esc(r.id) + '" data-sign="1" aria-label="Add">+</button></div>' +
-          (p ? '<button class="link" data-a="quick-add" data-id="' + esc(r.id) + '">Reorder</button>' : '') + '</div></div>';
-      }).join('') + '</div>' : '<div class="card empty"><b>' + (rows.length ? 'No match' : 'Nothing in stock yet') + '</b>' + (rows.length ? '' : 'Tap “+ Adjust” to add what you have now. Deliveries from Thread Tribe after ' + fmtDate(s.stockStart) + ' add up here.') + '</div>') +
-      '<div class="card sum" style="margin-top:12px"><div class="row"><span class="muted">Tracking since</span><span class="r">' + fmtDate(s.stockStart) + '</span></div>' +
-      '<div class="row"><span class="muted">Warn me below</span><span class="r"><input id="lowStock" type="number" min="0" value="' + lim + '" style="width:90px;padding:6px 8px;text-align:right"> pcs</span></div></div>';
+  // ======================= quotations to their own buyers =======================
+  // A quote is priced like an invoice (their selling prices, customer discount, GST) but has no
+  // tax-invoice number; once the buyer agrees it becomes an invoice in one tap.
+  var qdraft = null;
+  var QST = { open: ['Sent', 'new'], expired: ['Expired', 'soon'], accepted: ['Accepted', 'ok'], invoiced: ['Invoiced', 'ok'], lost: ['Lost', 'bad'] };
+  function quoteState(q){ return q.status === 'open' && q.validUntil && q.validUntil < today() ? 'expired' : (q.status || 'open'); }
+  function addDaysIso(n){ var d = new Date(); d.setDate(d.getDate() + n); return iso(d); }
+  function quoteCost(lines){ return lines.reduce(function(t, l){ var p = l.productId && product(l.productId); return t + (p && !onRequest(p) ? num(l.qty) * costOf(p) : 0); }, 0); }
+  function renderQuotes(){
+    if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on quotations for your account.</div>';
+    var qs = list('quotes').sort(function(a, b){ return (b.createdAt || '').localeCompare(a.createdAt || ''); }), m = today().slice(0, 7);
+    var live = qs.filter(function(q){ var s = quoteState(q); return s === 'open' || s === 'expired'; }), rest = qs.filter(function(q){ return live.indexOf(q) === -1; });
+    var won = qs.filter(function(q){ return (q.status === 'accepted' || q.status === 'invoiced') && (q.decidedAt || '').slice(0, 7) === m; });
+    var decided = qs.filter(function(q){ return ['accepted', 'invoiced', 'lost'].indexOf(q.status) !== -1; });
+    var winRate = decided.length ? Math.round(100 * decided.filter(function(q){ return q.status !== 'lost'; }).length / decided.length) : null;
+    var row = function(q){
+      var st = quoteState(q), c = q.customer || {}, wait = st === 'open' ? daysSince((q.sentAt || q.createdAt || '').slice(0, 10)) : 0;
+      return '<button class="item" data-a="quote" data-id="' + esc(q.id) + '"><div class="body"><div class="t">' + esc(q.no) + ' · ' + esc(c.business || c.name || 'Buyer') + '</div>' +
+        '<div class="s">' + fmtDate(q.date) + ' · ' + (q.lines || []).reduce(function(s, l){ return s + num(l.qty); }, 0) + ' pcs' + (st === 'open' ? ' · valid till ' + fmtDate(q.validUntil) : '') +
+        (st === 'open' && wait >= 3 ? ' · <span style="color:var(--amber)">follow up</span>' : '') + '</div></div>' +
+        '<span class="amt">' + money(q.total) + '</span><span class="chip ' + QST[st][1] + '">' + QST[st][0] + '</span></button>';
+    };
+    return (store.quotesBlocked ? '<div class="note warn" style="margin:0 0 10px">Your quotes are saved on this phone only for now — Thread Tribe still has to switch on quote syncing.</div>' : '') +
+      '<div class="stats"><div class="stat"><div class="k">Open quotes</div><div class="v">' + money(live.filter(function(q){ return quoteState(q) === 'open'; }).reduce(function(t, q){ return t + num(q.total); }, 0)) + '</div><div class="s">' + live.length + ' waiting on buyers</div></div>' +
+      '<div class="stat"><div class="k">Won this month</div><div class="v">' + money(won.reduce(function(t, q){ return t + num(q.total); }, 0)) + '</div><div class="s">' + (winRate === null ? 'no decisions yet' : winRate + '% of quotes won') + '</div></div></div>' +
+      '<div class="btns" style="margin-bottom:10px"><button class="btn primary block" data-a="new-quote">+ New quote</button></div>' +
+      (qs.length ? (live.length ? '<div class="h2">Waiting on buyers <span class="count">' + live.length + '</span></div>' + live.map(row).join('') : '') +
+        (rest.length ? '<div class="h2">Decided <span class="count">' + rest.length + '</span></div>' + rest.map(row).join('') : '')
+      : '<div class="card empty"><b>No quotes yet</b>Send a wholesaler or importer a priced quote in seconds — on WhatsApp or as a PDF — and turn it into an invoice when they say yes.</div>');
   }
-  function adjustSheet(productId, sign){
-    openSheet('<div class="sheet-h"><div class="t">' + (sign > 0 ? 'Add stock' : sign < 0 ? 'Remove stock' : 'Adjust stock') + '</div><button class="x" data-a="close">✕</button></div>' +
-      '<p class="muted">For opening stock, damages, samples or a count correction.</p>' +
-      '<label>Toy</label><select id="a-prod">' + catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); }).map(function(p){ return '<option value="' + esc(p.id) + '"' + (p.id === productId ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select>' +
-      '<label>' + (sign < 0 ? 'How many to remove' : sign > 0 ? 'How many to add' : 'Change (use − for less)') + '</label><input id="a-qty" type="number" inputmode="numeric" placeholder="' + (sign ? 'e.g. 10' : 'e.g. 50 or -3') + '" data-sign="' + (sign || 0) + '">' +
-      '<label>Reason</label><input id="a-note" placeholder="' + (sign < 0 ? 'Damaged, sample given, count…' : 'Opening stock, count…') + '">' +
-      '<div class="btns"><button class="btn primary block" data-a="save-adjust">Save</button></div>');
-    setTimeout(function(){ var q = document.getElementById('a-qty'); if(q) q.focus(); }, 300);
+  function newQuote(customerId){ return { id: '', customerId: customerId || '', date: today(), validUntil: addDaysIso(7), lines: [], notes: '', gstRate: num(settings().gstRate) }; }
+  function quoteEditor(){
+    var d = qdraft, c = draftCalc(d), custs = list('customers').sort(function(a, b){ return (a.business || a.name || '').localeCompare(b.business || b.name || ''); });
+    var cost = quoteCost(d.lines), earn = c.taxable - cost;
+    openSheet('<div class="sheet-h"><div class="t">' + (d.id ? 'Edit quote' : 'New quote') + '</div><button class="x" data-a="close">✕</button></div>' +
+      '<label>For</label><select id="q-cust"><option value="">Choose a buyer…</option>' + custs.map(function(x){ return '<option value="' + esc(x.id) + '"' + (x.id === d.customerId ? ' selected' : '') + '>' + esc(x.business || x.name) + (x.city ? ' · ' + esc(x.city) : '') + '</option>'; }).join('') + '<option value="__new">+ Add a new buyer…</option></select>' +
+      '<div class="grid2"><div><label>Valid till</label><input id="q-valid" type="date" min="' + today() + '" value="' + esc(d.validUntil) + '"></div><div><label>GST %</label><input id="q-gst" type="number" min="0" step="0.5" value="' + esc(d.gstRate) + '"></div></div>' +
+      '<label>Toys</label><div class="lines">' + (d.lines.length ? d.lines.map(function(l, i){
+        return '<div class="ln"><div style="min-width:0"><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">₹<input type="number" min="0" data-qrate="' + i + '" value="' + l.rate + '" style="width:80px;padding:4px 6px;display:inline-block;text-align:right"> each</div></div>' +
+          '<input type="number" min="1" data-qqty="' + i + '" value="' + l.qty + '"><button class="x" data-a="q-del-line" data-i="' + i + '">✕</button></div>';
+      }).join('') : '<p class="muted" style="padding:8px 0">No toys yet.</p>') + '</div>' +
+      '<label>Add a toy</label><select id="q-add"><option value="">Choose…</option>' + catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); }).map(function(p){
+        return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' — ' + money(sellPrice(p)) + '</option>'; }).join('') + '<option value="__custom">Something else (type it)…</option></select>' +
+      '<div class="card sum" style="margin-top:14px">' +
+      '<div class="row"><span>' + c.qty + ' pcs · subtotal</span><span class="r">' + money2(c.sub) + '</span></div>' +
+      (c.pct ? '<div class="row"><span class="muted">Discount ' + c.pct + '%</span><span class="r">−' + money2(c.discountAmt) + '</span></div>' : '') +
+      '<div class="row"><span class="muted">GST ' + d.gstRate + '%</span><span class="r">' + money2(c.tax) + '</span></div>' +
+      '<div class="row"><span><b>Quote total</b></span><span class="r">' + money(c.total) + '</span></div>' +
+      (cost > 0 ? '<div class="row"><span class="muted">You earn (after your Thread Tribe cost)</span><span class="r" style="color:' + (earn > 0 ? 'var(--green)' : 'var(--red)') + '">' + money(earn) + '</span></div>' : '') + '</div>' +
+      (cost > 0 ? '<p class="muted" style="margin:6px 4px 0;font-size:12px">Only you see what you earn; it isn’t on the quote.</p>' : '') +
+      '<label>Note for the buyer (optional)</label><textarea id="q-notes" maxlength="1000" placeholder="e.g. Dispatch in 7 days after confirmation. Mixed colours available.">' + esc(d.notes) + '</textarea>' +
+      '<div class="btns"><button class="btn primary block" data-a="save-quote"' + (d.lines.length ? '' : ' disabled') + '>' + (d.id ? 'Save changes' : 'Create quote') + '</button></div>');
+  }
+  function readQuoteForm(){
+    if(!qdraft) return;
+    var cu = document.getElementById('q-cust'); if(cu && cu.value !== '__new') qdraft.customerId = cu.value;
+    qdraft.validUntil = val('q-valid') || qdraft.validUntil;
+    qdraft.gstRate = Math.max(0, num(val('q-gst')));
+    qdraft.notes = val('q-notes');
+    document.querySelectorAll('[data-qqty]').forEach(function(el){ qdraft.lines[+el.getAttribute('data-qqty')].qty = Math.max(1, Math.round(num(el.value))); });
+    document.querySelectorAll('[data-qrate]').forEach(function(el){ qdraft.lines[+el.getAttribute('data-qrate')].rate = Math.max(0, num(el.value)); });
+  }
+  function saveQuote(){
+    readQuoteForm();
+    var d = qdraft, s = settings(), c = draftCalc(d);
+    if(!d.lines.length){ toast('Add at least one toy'); return; }
+    if(!d.customerId){ toast('Choose who the quote is for'); return; }
+    var id = d.id || uid(), prev = d.id ? (store.docs.quotes || {})[id] : null, cust = c.cust || {};
+    var q = {
+      no: prev ? prev.no : 'QT-' + String(num(s.nextQuoteNo) || 1).padStart(4, '0'), date: prev ? prev.date : today(), validUntil: d.validUntil, customerId: d.customerId,
+      customer: { business: cust.business || '', name: cust.name || '', gstin: cust.gstin || '', phone: cust.phone || '', address: cust.address || '', city: cust.city || '', state: cust.state || '' },
+      lines: d.lines.map(function(l){ return { productId: l.productId || '', name: l.name, hsn: l.hsn || s.hsn || '', qty: num(l.qty), rate: num(l.rate) }; }),
+      discountPct: c.pct, sub: c.sub, discountAmt: c.discountAmt, taxable: c.taxable, gstRate: d.gstRate, gst: c.gst, roundOff: c.roundOff, total: c.total, cost: Math.round(quoteCost(d.lines)),
+      notes: d.notes, status: prev ? prev.status : 'open', sentAt: prev ? prev.sentAt : '', decidedAt: prev ? prev.decidedAt : '', invoiceId: prev ? prev.invoiceId : '',
+      seller: { bizName: s.bizName, gstin: s.gstin, address: s.address, city: s.city, state: s.state, phone: s.phone, terms: s.terms },
+      createdAt: prev ? prev.createdAt : new Date().toISOString()
+    };
+    put('quotes', id, q);
+    if(!prev) saveSettings({ nextQuoteNo: (num(s.nextQuoteNo) || 1) + 1 });
+    qdraft = null; closeSheet(); tab = 'quotes'; renderAll(); showQuote(id);
+  }
+  function editQuote(id){
+    var q = (store.docs.quotes || {})[id]; if(!q) return;
+    qdraft = { id: id, customerId: q.customerId, date: q.date, validUntil: q.validUntil, gstRate: q.gstRate, notes: q.notes || '',
+      lines: (q.lines || []).map(function(l){ return { productId: l.productId, name: l.name, hsn: l.hsn, qty: l.qty, rate: l.rate }; }) };
+    document.getElementById('inv').classList.add('hidden');
+    quoteEditor();
+  }
+  function setQuote(id, patch){ var q = (store.docs.quotes || {})[id]; if(!q) return; put('quotes', id, Object.assign({}, q, patch)); }
+  function showQuote(id){
+    var q = (store.docs.quotes || {})[id]; if(!q) return;
+    var se = q.seller || {}, c = q.customer || {}, st = quoteState(q);
+    var el = document.getElementById('inv');
+    el.innerHTML = '<div class="bar2">' +
+      '<button class="btn small primary" data-a="share-quote" data-id="' + esc(id) + '">Share on WhatsApp</button>' +
+      '<button class="btn small" data-a="print">Print / Save PDF</button>' +
+      (st === 'open' || st === 'expired' ? '<button class="btn small" data-a="quote-won" data-id="' + esc(id) + '">Buyer said yes → invoice</button><button class="btn small" data-a="quote-lost" data-id="' + esc(id) + '">Lost</button><button class="btn small" data-a="edit-quote" data-id="' + esc(id) + '">Edit</button>' : '') +
+      (st === 'accepted' ? '<button class="btn small" data-a="quote-won" data-id="' + esc(id) + '">Make invoice</button>' : '') +
+      (q.invoiceId && store.docs.invoices[q.invoiceId] ? '<button class="btn small" data-a="invoice" data-id="' + esc(q.invoiceId) + '">View invoice</button>' : '') +
+      ((q.lines || []).some(function(l){ return l.productId && product(l.productId); }) && st !== 'lost' ? '<button class="btn small" data-a="quote-buy" data-id="' + esc(id) + '">Buy these from Thread Tribe</button>' : '') +
+      '<button class="btn small danger" data-a="del-quote" data-id="' + esc(id) + '">Delete</button>' +
+      '<button class="btn small" data-a="close-inv">Close</button></div><div class="doc">' +
+      (st !== 'open' ? '<p style="font-weight:700;color:' + (st === 'lost' || st === 'expired' ? '#b00' : '#0a7') + '">' + QST[st][0].toUpperCase() + '</p>' : '') +
+      '<h1>Quotation</h1><div><b>' + esc(q.no) + '</b> · ' + fmtDate(q.date) + ' · valid till ' + fmtDate(q.validUntil) + '</div>' +
+      '<div class="meta"><div><b>' + esc(se.bizName) + '</b><br>' + esc(se.address).replace(/\n/g, '<br>') + (se.city || se.state ? '<br>' + esc([se.city, se.state].filter(Boolean).join(', ')) : '') +
+        (se.gstin ? '<br>GSTIN ' + esc(se.gstin) : '') + (se.phone ? '<br>' + esc(se.phone) : '') + '</div>' +
+      '<div><b>Quote for</b><br>' + esc(c.business || c.name || '') + (c.business && c.name ? '<br>' + esc(c.name) : '') +
+        (c.city || c.state ? '<br>' + esc([c.city, c.state].filter(Boolean).join(', ')) : '') + (c.gstin ? '<br>GSTIN ' + esc(c.gstin) : '') + (c.phone ? '<br>' + esc(c.phone) : '') + '</div></div>' +
+      '<table><tr><th>#</th><th>Item</th><th>HSN</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr>' +
+      (q.lines || []).map(function(l, k){ return '<tr><td>' + (k + 1) + '</td><td>' + esc(l.name) + '</td><td>' + esc(l.hsn) + '</td><td class="n">' + l.qty + '</td><td class="n">' + money2(l.rate) + '</td><td class="n">' + money2(l.qty * l.rate) + '</td></tr>'; }).join('') +
+      '</table><table class="tot"><tr><td>Subtotal</td><td class="n">' + money2(q.sub) + '</td></tr>' +
+      (q.discountPct ? '<tr><td>Discount ' + q.discountPct + '%</td><td class="n">−' + money2(q.discountAmt) + '</td></tr>' : '') +
+      '<tr><td>GST ' + q.gstRate + '%</td><td class="n">' + money2((q.gst && (q.gst.igst + q.gst.cgst + q.gst.sgst)) || 0) + '</td></tr>' +
+      (q.roundOff ? '<tr><td>Round off</td><td class="n">' + money2(q.roundOff) + '</td></tr>' : '') +
+      '<tr><td><b>Total</b></td><td class="n"><b>' + money2(q.total) + '</b></td></tr></table>' +
+      '<div class="words">Rupees ' + words(q.total) + ' only</div>' +
+      (q.notes ? '<p style="margin-top:10px">' + esc(q.notes) + '</p>' : '') +
+      '<p style="margin-top:10px;color:#555">Prices valid till ' + fmtDate(q.validUntil) + '. This is a quotation, not a tax invoice.</p>' +
+      '<p style="margin-top:28px;text-align:right">For ' + esc(se.bizName) + '</p></div>';
+    el.classList.remove('hidden');
+  }
+  function shareQuote(id){
+    var q = (store.docs.quotes || {})[id]; if(!q) return;
+    var c = q.customer || {}, se = q.seller || {};
+    var msg = 'Quotation ' + q.no + ' from ' + (se.bizName || '') + '\n' + (c.name ? 'For ' + c.name + (c.business ? ', ' + c.business : '') + '\n' : '') +
+      (q.lines || []).map(function(l){ return '• ' + l.name + ' × ' + l.qty + ' @ ₹' + l.rate; }).join('\n') +
+      (q.discountPct ? '\nDiscount: ' + q.discountPct + '%' : '') + '\nTotal incl. GST: ' + money2(q.total) + '\nValid till ' + fmtDate(q.validUntil) + (q.notes ? '\n' + q.notes : '') + '\n\nReply YES to confirm and we’ll dispatch.';
+    var phone = String(c.phone || '').replace(/\D/g, '');
+    if(phone.length === 10) phone = '91' + phone;
+    if(!q.sentAt) setQuote(id, { sentAt: new Date().toISOString() });
+    window.open('https://wa.me/' + (phone.length >= 11 ? phone : '') + '?text=' + encodeURIComponent(msg), '_blank');
+  }
+  function quoteToInvoice(id){
+    var q = (store.docs.quotes || {})[id]; if(!q) return;
+    if(q.status !== 'accepted') setQuote(id, { status: 'accepted', decidedAt: new Date().toISOString() });
+    draft = newDraft(q.customerId);
+    draft.gstRate = q.gstRate; draft.notes = q.notes || ''; draft.fromQuote = id;
+    draft.lines = (q.lines || []).map(function(l){ return { productId: l.productId, name: l.name, hsn: l.hsn, qty: l.qty, rate: l.rate }; });
+    document.getElementById('inv').classList.add('hidden');
+    invoiceEditor();
+  }
+  function quoteToCart(id){
+    var q = (store.docs.quotes || {})[id]; if(!q) return;
+    var added = 0;
+    (q.lines || []).forEach(function(l){
+      var p = l.productId && product(l.productId); if(!p) return;
+      var ex = store.cart.find(function(x){ return x.productId === p.id; });
+      if(ex) ex.qty = Math.max(ex.qty, l.qty); else store.cart.push({ productId: p.id, qty: Math.max(T().minPerProduct || 1, l.qty), color: '' });
+      added++;
+    });
+    save(); document.getElementById('inv').classList.add('hidden'); tab = 'cart'; renderAll(); window.scrollTo(0, 0);
+    toast(added ? added + ' toy' + (added === 1 ? '' : 's') + ' from ' + q.no + ' in your cart' : 'None of these are in the Thread Tribe shop');
   }
 
   // ======================= account =======================
@@ -2322,7 +2412,7 @@
     if(os){ orderSeg = os.getAttribute('data-oseg'); renderAll(); return; }
     var bs = e.target.closest('[data-bseg]');
     if(bs){ bizSeg = bs.getAttribute('data-bseg'); bizQuery = ''; renderAll(); return; }
-    if(e.target.id === 'scrim'){ closeSheet(); draft = null; return; }
+    if(e.target.id === 'scrim'){ closeSheet(); draft = null; qdraft = null; return; }
     if(e.target.closest('#sync')){ flushDocs(); refreshSoon(0); toast('Refreshing…'); return; }
     var a = e.target.closest('[data-a]');
     if(!a) return;
@@ -2389,7 +2479,7 @@
     else if(act === 'tt-invoice'){ closeSheet(); showTTInvoice(id); }
     else if(act === 'print') window.print();
     else if(act === 'close-inv') document.getElementById('inv').classList.add('hidden');
-    else if(act === 'close'){ closeSheet(); draft = null; }
+    else if(act === 'close'){ closeSheet(); draft = null; qdraft = null; }
     // business
     else if(act === 'new-invoice'){ draft = newDraft(); invoiceEditor(); }
     else if(act === 'invoice-for'){ draft = newDraft(id); invoiceEditor(); }
@@ -2404,26 +2494,21 @@
     else if(act === 'save-customer'){
       var cid = saveCustomer(id);
       if(!cid) return;
-      if(draft){ draft.customerId = cid; invoiceEditor(); } else { closeSheet(); renderAll(); }
+      if(qdraft){ qdraft.customerId = cid; quoteEditor(); } else if(draft){ draft.customerId = cid; invoiceEditor(); } else { closeSheet(); renderAll(); }
       toast('Customer saved');
     }
     else if(act === 'del-customer'){ if(confirm('Delete this customer? Their past invoices stay.')){ remove('customers', id); closeSheet(); renderAll(); } }
-    else if(act === 'start-stock'){ saveSettings({ stockStart: today(), stockStartAt: new Date().toISOString() }); renderAll(); adjustSheet(); toast('Add what you have on hand today'); }
-    else if(act === 'adjust-stock') adjustSheet();
-    else if(act === 'adj-one') adjustSheet(id, +a.getAttribute('data-sign'));
-    else if(act === 'stock-low'){ stockQuery = ''; var lim2 = num(settings().lowStock); toast(lowStock().length ? 'Low toys are at the top' : 'Nothing is running low'); window.scrollTo(0, 0); void lim2; }
-    else if(act === 'restock-low'){
-      var added = 0;
-      lowStock().forEach(function(r){ if(product(r.id)){ var ex = store.cart.find(function(x){ return x.productId === r.id; }); if(!ex){ store.cart.push({ productId: r.id, qty: Math.max(T().minPerProduct, 25), color: '' }); added++; } } });
-      save(); tab = 'cart'; renderAll(); toast(added ? added + ' low toy' + (added === 1 ? '' : 's') + ' added — set the quantities' : 'Already in your cart');
-    }
-    else if(act === 'save-adjust'){
-      var pid = val('a-prod'), qn = Math.round(num(val('a-qty'))), pr = product(pid), sgn = +(document.getElementById('a-qty').getAttribute('data-sign') || 0);
-      if(sgn) qn = sgn * Math.abs(qn);
-      if(!pr || !qn){ toast('Pick a toy and a quantity'); return; }
-      put('stock', uid(), { productId: pid, name: pr.name, qty: qn, note: val('a-note'), date: today() });
-      closeSheet(); renderAll(); toast('Stock updated');
-    }
+    // quotations
+    else if(act === 'new-quote'){ qdraft = newQuote(); quoteEditor(); }
+    else if(act === 'quote') showQuote(id);
+    else if(act === 'edit-quote') editQuote(id);
+    else if(act === 'q-del-line'){ readQuoteForm(); qdraft.lines.splice(+a.getAttribute('data-i'), 1); quoteEditor(); }
+    else if(act === 'save-quote') saveQuote();
+    else if(act === 'share-quote'){ shareQuote(id); showQuote(id); }
+    else if(act === 'quote-won') quoteToInvoice(id);
+    else if(act === 'quote-lost'){ setQuote(id, { status: 'lost', decidedAt: new Date().toISOString() }); showQuote(id); renderAll(); toast('Marked as lost'); }
+    else if(act === 'quote-buy') quoteToCart(id);
+    else if(act === 'del-quote'){ var dq = (store.docs.quotes || {})[id]; if(dq && confirm('Delete quote ' + dq.no + '?')){ remove('quotes', id); document.getElementById('inv').classList.add('hidden'); renderAll(); toast('Quote deleted'); } }
     else if(act === 'add-cslab'){
       var mn = Math.round(num(val('csMin'))), pc = Math.max(0, Math.min(100, num(val('csPct'))));
       if(mn < 1 || !pc){ toast('Enter pieces and a discount %'); return; }
@@ -2477,15 +2562,29 @@
       if(v) put('prices', pid, Object.assign({}, store.docs.prices[pid] || {}, { sell: v })); else remove('prices', pid);
       renderAll();
     }
-    else if(t.id === 'lowStock2'){}
     else if(t.id === 'markup'){ saveSettings({ markup: Math.max(0, num(t.value)) }); renderAll(); }
     else if(t.id === 'maxCust'){ saveSettings({ maxCustDiscount: Math.max(0, Math.min(100, num(t.value))) }); toast('Saved'); }
-    else if(t.id === 'lowStock'){ saveSettings({ lowStock: Math.max(0, Math.round(num(t.value))) }); renderAll(); }
+    else if(t.id === 'q-cust'){
+      if(t.value === '__new'){ readQuoteForm(); customerSheet(null); return; }
+      readQuoteForm(); quoteEditor();
+    }
+    else if(t.id === 'q-add'){
+      readQuoteForm();
+      if(t.value === '__custom'){
+        var qnm = prompt('Item name'); if(!qnm){ quoteEditor(); return; }
+        qdraft.lines.push({ productId: '', name: qnm.slice(0, 120), qty: 1, rate: num(prompt('Rate per piece (₹)', '0')), hsn: settings().hsn });
+      } else if(t.value){
+        var qp = product(t.value), qex = qdraft.lines.find(function(l){ return l.productId === t.value; });
+        if(qex) qex.qty += 25; else if(qp) qdraft.lines.push({ productId: qp.id, name: qp.name, qty: 25, rate: sellPrice(qp), hsn: (store.docs.prices[qp.id] && store.docs.prices[qp.id].hsn) || settings().hsn });
+      }
+      quoteEditor();
+    }
+    else if(t.hasAttribute('data-qqty') || t.hasAttribute('data-qrate') || t.id === 'q-gst' || t.id === 'q-valid'){ readQuoteForm(); quoteEditor(); }
   });
   document.addEventListener('input', function(e){
     var id = e.target.id;
     if(id === 'q' || id === 'bq' || id === 'sq'){
-      if(id === 'q') shopQuery = e.target.value; else if(id === 'sq') stockQuery = e.target.value; else bizQuery = e.target.value;
+      if(id === 'q') shopQuery = e.target.value; else bizQuery = e.target.value;
       var pos = e.target.selectionStart;
       renderAll();
       var el = document.getElementById(id); if(el){ el.focus(); try{ el.setSelectionRange(pos, pos); }catch(err){} }
