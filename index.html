@@ -158,6 +158,11 @@
   .att-bar i{ display:block; height:100%; background:var(--accent); border-radius:3px; }
   .att-row.more .att-t{ color:var(--accent); }
   .strip{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .bigcustom{ flex:1; min-height:150px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; width:100%; border:1.5px dashed var(--accent); border-radius:20px; background:var(--accent-soft); color:var(--text); cursor:pointer; padding:20px; }
+  .bigcustom:active{ transform:scale(0.99); }
+  .bigcustom .bc-ic{ width:64px; height:64px; border-radius:20px; background:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .bigcustom .bc-ic svg{ width:32px; height:32px; fill:none; stroke:var(--accent-ink); stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .bigcustom .bc-t{ font-size:19px; font-weight:700; letter-spacing:-0.2px; } .bigcustom .bc-s{ font-size:13.5px; color:var(--dim); }
   .strip-tabs{ display:flex; gap:6px; align-items:center; overflow-x:auto; scrollbar-width:none; margin-bottom:8px; flex:none; }
   .strip-tabs::-webkit-scrollbar{ display:none; }
   .strip-tabs button[data-strip]{ flex:none; border:1px solid var(--line); background:var(--panel); border-radius:20px; padding:6px 12px; font-size:13px; font-weight:600; color:var(--dim); cursor:pointer; white-space:nowrap; }
@@ -986,7 +991,6 @@
       (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>Invoice</button>' : '') +
       (biz ? '<button data-a="new-quote"><span class="qi">' + ICONS.quote + '</span>Quote</button>' : '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>') +
       '<button data-a="share-catalog"><span class="qi">' + ICONS.catalog + '</span>Catalogue</button>' +
-      '<button data-a="pj-request"><span class="qi">' + ICONS.custom + '</span>Custom</button>' +
       (biz ? '<button data-a="home-collect"><span class="qi">' + ICONS.collect + (dueCount ? '<b class="qb">' + dueCount + '</b>' : '') + '</span>Collect</button>' : '') +
       '</div>';
     // what needs me (fits the screen; the rest behind "+N more")
@@ -1001,15 +1005,11 @@
     } else {
       html += '<div class="att"><div class="att-row"><span class="att-ic">✅</span><span class="att-b"><span class="att-t">All caught up</span><span class="att-s">Nothing needs you right now</span></span></div></div>';
     }
-    // what's moving: one strip that fills the rest of the screen
-    var strips = homeStrips();
-    if(strips.length){
-      if(!strips.some(function(s){ return s.key === homeStrip; })) homeStrip = strips[0].key;
-      var cur = strips.find(function(s){ return s.key === homeStrip; });
-      html += '<div class="strip"><div class="strip-tabs">' + strips.map(function(s){ return '<button data-strip="' + s.key + '" class="' + (s.key === homeStrip ? 'on' : '') + '">' + s.label + '</button>'; }).join('') +
-        '<button class="link" data-a="open-seg" data-v="' + cur.seg + '">See all</button></div>' +
-        '<div class="strip-row">' + cur.items.slice(0, 10).map(function(x, i){ return stripCard(x, cur.key === 'trending' ? '#' + (i + 1) : cur.key === 'new' ? 'NEW' : ''); }).join('') + '</div></div>';
-    }
+    // custom design: one big button that fills the rest of the screen
+    var mine = pjb.list.length;
+    html += '<button class="bigcustom" data-a="pj-request"><span class="bc-ic">' + ICONS.custom + '</span><span class="bc-t">Request a custom design</span>' +
+      '<span class="bc-s">Your idea, made by our designers</span></button>' +
+      (mine ? '<button class="link" style="align-self:center;padding:0" data-a="home-go" data-go2="orders" data-seg2="custom">Your custom designs (' + mine + ') ›</button>' : '');
     return html + '</div>';
   }
   var homeStrip = 'trending';
