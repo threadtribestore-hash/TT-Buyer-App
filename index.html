@@ -266,6 +266,13 @@
   .cbar i{ display:block; height:100%; background:var(--accent); border-radius:6px; transition:width .4s; }
   .ladder{ display:flex; gap:3px; margin-top:10px; } .ladder i{ flex:1; font-style:normal; text-align:center; font-size:10.5px; padding:4px 0; border-radius:5px; background:var(--panel2); color:var(--dim); }
   .ladder i.got{ background:var(--accent-soft); color:var(--accent); } .ladder i.now{ background:var(--accent); color:var(--accent-ink); font-weight:700; }
+  .brandcard{ display:flex; gap:12px; align-items:center; }
+  .bk-logo{ width:48px; height:48px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:20px; overflow:hidden; }
+  .bk-logo img{ width:100%; height:100%; object-fit:cover; }
+  .pchips{ display:flex; gap:8px; flex-wrap:wrap; } .pchip{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 4px; border:1px solid var(--line); border-radius:20px; background:var(--panel); color:var(--text); font-size:13px; font-weight:600; cursor:pointer; max-width:100%; }
+  .pchip img{ width:28px; height:28px; border-radius:50%; object-fit:cover; } .pchip span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; } .pchip.on{ border-color:var(--accent); background:var(--accent-soft); }
+  .promo-prev{ margin-top:12px; width:100%; max-height:62vh; border-radius:14px; overflow:hidden; background:var(--panel2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
+  .promo-prev canvas{ width:100%; height:100%; object-fit:contain; display:block; }
   .prodbox{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
   .prodbox > div{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
   .prodbox .k{ font-size:12px; color:var(--dim); }
@@ -401,7 +408,7 @@
   <button data-tab="shop"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Shop</button>
   <button data-tab="orders"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Purchases</button>
   <button data-tab="business"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Business</button>
-  <button data-tab="quotes"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/></svg>Quotes</button>
+  <button data-tab="promote"><svg viewBox="0 0 24 24"><path d="M4 10v4h3l6 4V6L7 10z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/></svg>Promote</button>
 </nav>
 <div class="scrim hidden" id="scrim"></div>
 <div class="sheet hidden" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
@@ -739,7 +746,9 @@
     var o = store.docs.prices[p.id];
     if(o && o.sell > 0) return o.sell;
     if(onRequest(p)) return p.retail || 0;
-    return Math.round(costOf(p) * (1 + num(settings().markup) / 100));
+    // Their markup on what they pay, but never above MRP (selling above MRP isn't allowed).
+    var v = Math.round(costOf(p) * (1 + num(settings().markup) / 100));
+    return p.base > 0 ? Math.min(v, Math.round(p.base)) : v;
   }
   function custSlabFor(total){ var p = 0; (settings().custSlabs || []).forEach(function(s){ if(total >= s.min) p = s.pct; }); return p; }
   function custDiscount(customer, total){ return Math.min(num(settings().maxCustDiscount) || 100, num(customer && customer.discount) + custSlabFor(total)); }
@@ -879,9 +888,9 @@
     var navTab = tab === 'cart' ? 'shop' : tab;
     nav.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === navTab); });
     document.getElementById('eyebrow').textContent = pack().client.name || 'Thread Tribe Trade';
-    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Purchases', quotes: 'Quotations', business: 'Business', account: 'Account' };
+    var titles = { home: 'Home', shop: 'Shop', cart: 'Cart', orders: 'Purchases', promote: 'Promote', business: 'Business', account: 'Account' };
     document.getElementById('title').textContent = tab === 'home' ? greeting() + ', ' + ((pack().client.contact || pack().client.name || '').split(' ')[0] || 'there') : titles[tab];
-    screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, quotes: renderQuotes, business: renderBusiness, account: renderAccount })[tab]();
+    screen.innerHTML = ({ home: renderHome, shop: renderShop, cart: renderCart, orders: renderOrders, promote: renderPromote, business: renderBusiness, account: renderAccount })[tab]();
     var av = document.getElementById('avatar');
     av.classList.remove('hidden'); av.classList.toggle('on', tab === 'account');
     av.textContent = ((pack().client.contact || pack().client.name || '?').trim().split(/\s+/).map(function(w){ return w[0]; }).join('').slice(0, 2) || '?').toUpperCase();
@@ -957,7 +966,7 @@
   // how am I doing → what can I do in one tap → what needs me → what's moving → details.
   var ICONS = {
     invoice: '<svg viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/></svg>',
-    quote: '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h4"/></svg>',
+    promote: '<svg viewBox="0 0 24 24"><path d="M4 10v4h3l6 4V6L7 10z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
     restock: '<svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11h11L21 7H7"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/></svg>',
     share: '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
     catalog: '<svg viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
@@ -985,8 +994,8 @@
     if(replied) out.push({ ic: '💬', cls: 'info', t: 'Thread Tribe replied', s: replied.reply, go: 'orders', seg: 'requests' });
     var od = dues().filter(function(d){ return daysSince(d.oldest) > 15; });
     if(od.length) out.push({ ic: '💰', cls: 'warn', t: money(od.reduce(function(t, d){ return t + d.total; }, 0)) + ' overdue from ' + od.length + ' buyer' + (od.length === 1 ? '' : 's'), s: 'More than 15 days — tap to send reminders', go: 'business', bseg: 'invoices' });
-    var stale = list('quotes').filter(function(q){ return quoteState(q) === 'open' && daysSince((q.sentAt || q.createdAt || '').slice(0, 10)) >= 3; });
-    if(stale.length) out.push({ ic: '📝', cls: 'info', t: stale.length + ' quote' + (stale.length === 1 ? '' : 's') + ' to follow up', s: stale.slice(0, 2).map(function(q){ return (q.customer && (q.customer.business || q.customer.name)) || q.no; }).join(', ') + ' · no answer for 3+ days', go: 'quotes' });
+    var lastPost = (promoLog()[0] || {}).at || '';
+    if(realOrders().length && (!lastPost || lastPost < daysAgo(7))) out.push({ ic: '📣', cls: 'info', t: lastPost ? 'No posts in a week' : 'Make your first post', s: 'Your products, your name — ready to share', go: 'promote' });
     var waiting = openRequests().length;
     if(waiting) out.push({ ic: '⏳', cls: '', t: waiting + ' request' + (waiting === 1 ? '' : 's') + ' with Thread Tribe', s: 'They’ll reply here', go: 'orders', seg: 'requests' });
     if(totalDue() > 0) out.push({ ic: '🧾', cls: '', t: money(totalDue()) + ' due to Thread Tribe', s: 'Pay on delivery', go: 'account' });
@@ -1005,7 +1014,7 @@
     var dueCount = dues().length;
     html += '<div class="qa">' +
       (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>Invoice</button>' : '') +
-      (biz ? '<button data-a="new-quote"><span class="qi">' + ICONS.quote + '</span>Quote</button>' : '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>') +
+      '<button data-a="promo-new"><span class="qi">' + ICONS.promote + '</span>Promote</button>' +
       '<button data-a="share-catalog"><span class="qi">' + ICONS.catalog + '</span>Catalogue</button>' +
       (biz ? '<button data-a="home-collect"><span class="qi">' + ICONS.collect + (dueCount ? '<b class="qb">' + dueCount + '</b>' : '') + '</span>Collect</button>' : '') +
       '</div>';
@@ -1099,8 +1108,8 @@
       out.push({ ic: '🏭', cls: 'info', t: o.displayId + ' being made · ' + (qty ? Math.round(100 * made / qty) : 0) + '%', s: made + ' of ' + qty + ' pcs' + (o.dispatchBy ? ' · ships by ' + fmtDate(o.dispatchBy) : ''), a: 'order', id: o.id, pct: qty ? made / qty : 0 });
     });
     collectionsLive().forEach(function(c){ out.push({ ic: '🎁', cls: 'good', t: c.name, s: (c.items || []).length + ' products' + (c.note ? ' · ' + c.note : ''), a: 'open-seg', v: 'col:' + c.id }); });
-    // urgency: shipments and money first, then quotes and replies, then the rest
-    var rank = { '🚚': 1, '📦': 2, '💰': 3, '📝': 4, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
+    // urgency: shipments and money first, then replies, then the rest
+    var rank = { '🚚': 1, '📦': 2, '💰': 3, '📣': 7, '💬': 5, '🏭': 6, '🎁': 7, '⏳': 8, '🧾': 9 };
     return out.sort(function(a, b){ return (rank[a.ic] || 9) - (rank[b.ic] || 9); });
   }
   function attRow(x){
@@ -1417,7 +1426,7 @@
           var nextMin = rows[i + 1] ? rows[i + 1].min : null;
           return '<tr data-min="' + s.min + '" data-max="' + (nextMin ? nextMin - 1 : '') + '"><td>' + s.min.toLocaleString('en-IN') + (nextMin ? '–' + (nextMin - 1).toLocaleString('en-IN') : '+') + ' pcs' + (s.pct ? ' · ' + s.pct + '% off' : '') + '</td><td>' + money(priceAt(p, s.pct)) + ' / pc</td></tr>';
         }).join('') + '</table></div>') +
-      kitHtml(p) +
+      '<div class="btns" style="margin:4px 0 0"><button class="btn block" data-a="promo-new" data-id="' + esc(p.id) + '">📣 Make a post with this</button></div>' +
       '<label>Colour (optional)</label><input id="pc" placeholder="' + esc(p.color || 'e.g. Pastel blue') + '" value="' + esc(inCart ? inCart.color || '' : '') + '">' +
       '<div class="btns"><button class="btn primary block" data-a="add" data-id="' + esc(p.id) + '">' + (inCart ? 'Update cart' : 'Add to cart') + '</button></div>');
     updateLine();
@@ -1885,7 +1894,6 @@
     if(prev){ var paidBefore = (prev.payments || []).reduce(function(t, p){ return t + num(p.amount); }, 0); inv.paid = Math.min(c.total, Math.max(paidBefore, d.paid || 0)); }
     put('invoices', id, inv);
     if(!editing) saveSettings({ nextNo: num(s.nextNo) + 1 });
-    if(d.fromQuote && (store.docs.quotes || {})[d.fromQuote]) setQuote(d.fromQuote, { status: 'invoiced', invoiceId: id, decidedAt: (store.docs.quotes || {})[d.fromQuote].decidedAt || new Date().toISOString() });
     draft = null; closeSheet(); bizSeg = 'invoices'; tab = 'business'; renderAll();
     showInvoice(id);
   }
@@ -2067,157 +2075,163 @@
     window.open('https://wa.me/' + (phone.length >= 11 ? phone : '') + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  // ======================= quotations to their own buyers =======================
-  // A quote is priced like an invoice (their selling prices, customer discount, GST) but has no
-  // tax-invoice number; once the buyer agrees it becomes an invoice in one tap.
-  var qdraft = null;
-  var QST = { open: ['Sent', 'new'], expired: ['Expired', 'soon'], accepted: ['Accepted', 'ok'], invoiced: ['Invoiced', 'ok'], lost: ['Lost', 'bad'] };
-  function quoteState(q){ return q.status === 'open' && q.validUntil && q.validUntil < today() ? 'expired' : (q.status || 'open'); }
-  function addDaysIso(n){ var d = new Date(); d.setDate(d.getDate() + n); return iso(d); }
-  function quoteCost(lines){ return lines.reduce(function(t, l){ var p = l.productId && product(l.productId); return t + (p && !onRequest(p) ? num(l.qty) * costOf(p) : 0); }, 0); }
-  function renderQuotes(){
-    if(cloud.bizMissing) return '<div class="card empty"><b>Coming soon</b>Thread Tribe is switching on quotations for your account.</div>';
-    var qs = list('quotes').sort(function(a, b){ return (b.createdAt || '').localeCompare(a.createdAt || ''); }), m = today().slice(0, 7);
-    var live = qs.filter(function(q){ var s = quoteState(q); return s === 'open' || s === 'expired'; }), rest = qs.filter(function(q){ return live.indexOf(q) === -1; });
-    var won = qs.filter(function(q){ return (q.status === 'accepted' || q.status === 'invoiced') && (q.decidedAt || '').slice(0, 7) === m; });
-    var decided = qs.filter(function(q){ return ['accepted', 'invoiced', 'lost'].indexOf(q.status) !== -1; });
-    var winRate = decided.length ? Math.round(100 * decided.filter(function(q){ return q.status !== 'lost'; }).length / decided.length) : null;
-    var row = function(q){
-      var st = quoteState(q), c = q.customer || {}, wait = st === 'open' ? daysSince((q.sentAt || q.createdAt || '').slice(0, 10)) : 0;
-      return '<button class="item" data-a="quote" data-id="' + esc(q.id) + '"><div class="body"><div class="t">' + esc(q.no) + ' · ' + esc(c.business || c.name || 'Buyer') + '</div>' +
-        '<div class="s">' + fmtDate(q.date) + ' · ' + (q.lines || []).reduce(function(s, l){ return s + num(l.qty); }, 0) + ' pcs' + (st === 'open' ? ' · valid till ' + fmtDate(q.validUntil) : '') +
-        (st === 'open' && wait >= 3 ? ' · <span style="color:var(--amber)">follow up</span>' : '') + '</div></div>' +
-        '<span class="amt">' + money(q.total) + '</span><span class="chip ' + QST[st][1] + '">' + QST[st][0] + '</span></button>';
-    };
-    return (store.quotesBlocked ? '<div class="note warn" style="margin:0 0 10px">Your quotes are saved on this phone only for now — Thread Tribe still has to switch on quote syncing.</div>' : '') +
-      '<div class="stats"><div class="stat"><div class="k">Open quotes</div><div class="v">' + money(live.filter(function(q){ return quoteState(q) === 'open'; }).reduce(function(t, q){ return t + num(q.total); }, 0)) + '</div><div class="s">' + live.length + ' waiting on buyers</div></div>' +
-      '<div class="stat"><div class="k">Won this month</div><div class="v">' + money(won.reduce(function(t, q){ return t + num(q.total); }, 0)) + '</div><div class="s">' + (winRate === null ? 'no decisions yet' : winRate + '% of quotes won') + '</div></div></div>' +
-      '<div class="btns" style="margin-bottom:10px"><button class="btn primary block" data-a="new-quote">+ New quote</button></div>' +
-      (qs.length ? (live.length ? '<div class="h2">Waiting on buyers <span class="count">' + live.length + '</span></div>' + live.map(row).join('') : '') +
-        (rest.length ? '<div class="h2">Decided <span class="count">' + rest.length + '</span></div>' + rest.map(row).join('') : '')
-      : '<div class="card empty"><b>No quotes yet</b>Send a wholesaler or importer a priced quote in seconds — on WhatsApp or as a PDF — and turn it into an invoice when they say yes.</div>');
+  // ======================= promote: posts in their own brand, and what they've shared =======================
+  // Brand partners sell by posting on WhatsApp and Instagram. They pick products, choose a format,
+  // and get a ready image with THEIR name, phone, colour and logo (never Thread Tribe's price) plus
+  // a caption; sharing is one tap. Brand kit and share history live in their settings doc.
+  var PROMO_FMT = { status: ['WhatsApp status', 1080, 1920, 'status'], post: ['Instagram post', 1080, 1080, 'insta'], list: ['Price list', 1080, 1350, 'buyer'] };
+  var promo = { ids: [], fmt: 'status', price: true, img: null, busy: false };
+  function brand(){ var s = settings(); return { name: s.bizName || (pack().client || {}).name || '', phone: s.phone || '', tagline: s.tagline || '', color: s.brandColor || '#1f9e93', logo: s.logo || '' }; }
+  function promoLog(){ return settings().promoLog || []; }
+  function logShare(how){
+    var l = promoLog().slice(0, 149);
+    l.unshift({ at: new Date().toISOString(), ids: promo.ids.slice(), fmt: promo.fmt, how: how });
+    saveSettings({ promoLog: l });
   }
-  function newQuote(customerId){ return { id: '', customerId: customerId || '', date: today(), validUntil: addDaysIso(7), lines: [], notes: '', gstRate: num(settings().gstRate) }; }
-  function quoteEditor(){
-    var d = qdraft, c = draftCalc(d), custs = list('customers').sort(function(a, b){ return (a.business || a.name || '').localeCompare(b.business || b.name || ''); });
-    var cost = quoteCost(d.lines), earn = c.taxable - cost;
-    openSheet('<div class="sheet-h"><div class="t">' + (d.id ? 'Edit quote' : 'New quote') + '</div><button class="x" data-a="close">✕</button></div>' +
-      '<label>For</label><select id="q-cust"><option value="">Choose a buyer…</option>' + custs.map(function(x){ return '<option value="' + esc(x.id) + '"' + (x.id === d.customerId ? ' selected' : '') + '>' + esc(x.business || x.name) + (x.city ? ' · ' + esc(x.city) : '') + '</option>'; }).join('') + '<option value="__new">+ Add a new buyer…</option></select>' +
-      '<div class="grid2"><div><label>Valid till</label><input id="q-valid" type="date" min="' + today() + '" value="' + esc(d.validUntil) + '"></div><div><label>GST %</label><input id="q-gst" type="number" min="0" step="0.5" value="' + esc(d.gstRate) + '"></div></div>' +
-      '<label>Toys</label><div class="lines">' + (d.lines.length ? d.lines.map(function(l, i){
-        return '<div class="ln"><div style="min-width:0"><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">₹<input type="number" min="0" data-qrate="' + i + '" value="' + l.rate + '" style="width:80px;padding:4px 6px;display:inline-block;text-align:right"> each</div></div>' +
-          '<input type="number" min="1" data-qqty="' + i + '" value="' + l.qty + '"><button class="x" data-a="q-del-line" data-i="' + i + '">✕</button></div>';
-      }).join('') : '<p class="muted" style="padding:8px 0">No products yet.</p>') + '</div>' +
-      '<label>Add a product</label><select id="q-add"><option value="">Choose…</option>' + catalogue().slice().sort(function(a, b){ return a.name.localeCompare(b.name); }).map(function(p){
-        return '<option value="' + esc(p.id) + '">' + esc(p.name) + ' — ' + money(sellPrice(p)) + '</option>'; }).join('') + '<option value="__custom">Something else (type it)…</option></select>' +
-      '<div class="card sum" style="margin-top:14px">' +
-      '<div class="row"><span>' + c.qty + ' pcs · subtotal</span><span class="r">' + money2(c.sub) + '</span></div>' +
-      (c.pct ? '<div class="row"><span class="muted">Discount ' + c.pct + '%</span><span class="r">−' + money2(c.discountAmt) + '</span></div>' : '') +
-      '<div class="row"><span class="muted">GST ' + d.gstRate + '%</span><span class="r">' + money2(c.tax) + '</span></div>' +
-      '<div class="row"><span><b>Quote total</b></span><span class="r">' + money(c.total) + '</span></div>' +
-      (cost > 0 ? '<div class="row"><span class="muted">You earn (after your Thread Tribe cost)</span><span class="r" style="color:' + (earn > 0 ? 'var(--green)' : 'var(--red)') + '">' + money(earn) + '</span></div>' : '') + '</div>' +
-      '<label>Note for the buyer (optional)</label><textarea id="q-notes" maxlength="1000" placeholder="e.g. Dispatch in 7 days after confirmation. Mixed colours available.">' + esc(d.notes) + '</textarea>' +
-      '<div class="btns"><button class="btn primary block" data-a="save-quote"' + (d.lines.length ? '' : ' disabled') + '>' + (d.id ? 'Save changes' : 'Create quote') + '</button></div>');
-  }
-  function readQuoteForm(){
-    if(!qdraft) return;
-    var cu = document.getElementById('q-cust'); if(cu && cu.value !== '__new') qdraft.customerId = cu.value;
-    qdraft.validUntil = val('q-valid') || qdraft.validUntil;
-    qdraft.gstRate = Math.max(0, num(val('q-gst')));
-    qdraft.notes = val('q-notes');
-    document.querySelectorAll('[data-qqty]').forEach(function(el){ qdraft.lines[+el.getAttribute('data-qqty')].qty = Math.max(1, Math.round(num(el.value))); });
-    document.querySelectorAll('[data-qrate]').forEach(function(el){ qdraft.lines[+el.getAttribute('data-qrate')].rate = Math.max(0, num(el.value)); });
-  }
-  function saveQuote(){
-    readQuoteForm();
-    var d = qdraft, s = settings(), c = draftCalc(d);
-    if(!d.lines.length){ toast('Add at least one product'); return; }
-    if(!d.customerId){ toast('Choose who the quote is for'); return; }
-    var id = d.id || uid(), prev = d.id ? (store.docs.quotes || {})[id] : null, cust = c.cust || {};
-    var q = {
-      no: prev ? prev.no : 'QT-' + String(num(s.nextQuoteNo) || 1).padStart(4, '0'), date: prev ? prev.date : today(), validUntil: d.validUntil, customerId: d.customerId,
-      customer: { business: cust.business || '', name: cust.name || '', gstin: cust.gstin || '', phone: cust.phone || '', address: cust.address || '', city: cust.city || '', state: cust.state || '' },
-      lines: d.lines.map(function(l){ return { productId: l.productId || '', name: l.name, hsn: l.hsn || s.hsn || '', qty: num(l.qty), rate: num(l.rate) }; }),
-      discountPct: c.pct, sub: c.sub, discountAmt: c.discountAmt, taxable: c.taxable, gstRate: d.gstRate, gst: c.gst, roundOff: c.roundOff, total: c.total, cost: Math.round(quoteCost(d.lines)),
-      notes: d.notes, status: prev ? prev.status : 'open', sentAt: prev ? prev.sentAt : '', decidedAt: prev ? prev.decidedAt : '', invoiceId: prev ? prev.invoiceId : '',
-      seller: { bizName: s.bizName, gstin: s.gstin, address: s.address, city: s.city, state: s.state, phone: s.phone, terms: s.terms },
-      createdAt: prev ? prev.createdAt : new Date().toISOString()
-    };
-    put('quotes', id, q);
-    if(!prev) saveSettings({ nextQuoteNo: (num(s.nextQuoteNo) || 1) + 1 });
-    qdraft = null; closeSheet(); tab = 'quotes'; renderAll(); showQuote(id);
-  }
-  function editQuote(id){
-    var q = (store.docs.quotes || {})[id]; if(!q) return;
-    qdraft = { id: id, customerId: q.customerId, date: q.date, validUntil: q.validUntil, gstRate: q.gstRate, notes: q.notes || '',
-      lines: (q.lines || []).map(function(l){ return { productId: l.productId, name: l.name, hsn: l.hsn, qty: l.qty, rate: l.rate }; }) };
-    document.getElementById('inv').classList.add('hidden');
-    quoteEditor();
-  }
-  function setQuote(id, patch){ var q = (store.docs.quotes || {})[id]; if(!q) return; put('quotes', id, Object.assign({}, q, patch)); }
-  function showQuote(id){
-    var q = (store.docs.quotes || {})[id]; if(!q) return;
-    var se = q.seller || {}, c = q.customer || {}, st = quoteState(q);
-    var el = document.getElementById('inv');
-    el.innerHTML = '<div class="bar2">' +
-      '<button class="btn small primary" data-a="share-quote" data-id="' + esc(id) + '">Share on WhatsApp</button>' +
-      '<button class="btn small" data-a="print">Print / Save PDF</button>' +
-      (st === 'open' || st === 'expired' ? '<button class="btn small" data-a="quote-won" data-id="' + esc(id) + '">Buyer said yes → invoice</button><button class="btn small" data-a="quote-lost" data-id="' + esc(id) + '">Lost</button><button class="btn small" data-a="edit-quote" data-id="' + esc(id) + '">Edit</button>' : '') +
-      (st === 'accepted' ? '<button class="btn small" data-a="quote-won" data-id="' + esc(id) + '">Make invoice</button>' : '') +
-      (q.invoiceId && store.docs.invoices[q.invoiceId] ? '<button class="btn small" data-a="invoice" data-id="' + esc(q.invoiceId) + '">View invoice</button>' : '') +
-      ((q.lines || []).some(function(l){ return l.productId && product(l.productId); }) && st !== 'lost' ? '<button class="btn small" data-a="quote-buy" data-id="' + esc(id) + '">Buy these from Thread Tribe</button>' : '') +
-      '<button class="btn small danger" data-a="del-quote" data-id="' + esc(id) + '">Delete</button>' +
-      '<button class="btn small" data-a="close-inv">Close</button></div><div class="doc">' +
-      (st !== 'open' ? '<p style="font-weight:700;color:' + (st === 'lost' || st === 'expired' ? '#b00' : '#0a7') + '">' + QST[st][0].toUpperCase() + '</p>' : '') +
-      '<h1>Quotation</h1><div><b>' + esc(q.no) + '</b> · ' + fmtDate(q.date) + ' · valid till ' + fmtDate(q.validUntil) + '</div>' +
-      '<div class="meta"><div><b>' + esc(se.bizName) + '</b><br>' + esc(se.address).replace(/\n/g, '<br>') + (se.city || se.state ? '<br>' + esc([se.city, se.state].filter(Boolean).join(', ')) : '') +
-        (se.gstin ? '<br>GSTIN ' + esc(se.gstin) : '') + (se.phone ? '<br>' + esc(se.phone) : '') + '</div>' +
-      '<div><b>Quote for</b><br>' + esc(c.business || c.name || '') + (c.business && c.name ? '<br>' + esc(c.name) : '') +
-        (c.city || c.state ? '<br>' + esc([c.city, c.state].filter(Boolean).join(', ')) : '') + (c.gstin ? '<br>GSTIN ' + esc(c.gstin) : '') + (c.phone ? '<br>' + esc(c.phone) : '') + '</div></div>' +
-      '<table><tr><th>#</th><th>Item</th><th>HSN</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr>' +
-      (q.lines || []).map(function(l, k){ return '<tr><td>' + (k + 1) + '</td><td>' + esc(l.name) + '</td><td>' + esc(l.hsn) + '</td><td class="n">' + l.qty + '</td><td class="n">' + money2(l.rate) + '</td><td class="n">' + money2(l.qty * l.rate) + '</td></tr>'; }).join('') +
-      '</table><table class="tot"><tr><td>Subtotal</td><td class="n">' + money2(q.sub) + '</td></tr>' +
-      (q.discountPct ? '<tr><td>Discount ' + q.discountPct + '%</td><td class="n">−' + money2(q.discountAmt) + '</td></tr>' : '') +
-      '<tr><td>GST ' + q.gstRate + '%</td><td class="n">' + money2((q.gst && (q.gst.igst + q.gst.cgst + q.gst.sgst)) || 0) + '</td></tr>' +
-      (q.roundOff ? '<tr><td>Round off</td><td class="n">' + money2(q.roundOff) + '</td></tr>' : '') +
-      '<tr><td><b>Total</b></td><td class="n"><b>' + money2(q.total) + '</b></td></tr></table>' +
-      '<div class="words">Rupees ' + words(q.total) + ' only</div>' +
-      (q.notes ? '<p style="margin-top:10px">' + esc(q.notes) + '</p>' : '') +
-      '<p style="margin-top:10px;color:#555">Prices valid till ' + fmtDate(q.validUntil) + '. This is a quotation, not a tax invoice.</p>' +
-      '<p style="margin-top:28px;text-align:right">For ' + esc(se.bizName) + '</p></div>';
-    el.classList.remove('hidden');
-  }
-  function shareQuote(id){
-    var q = (store.docs.quotes || {})[id]; if(!q) return;
-    var c = q.customer || {}, se = q.seller || {};
-    var msg = 'Quotation ' + q.no + ' from ' + (se.bizName || '') + '\n' + (c.name ? 'For ' + c.name + (c.business ? ', ' + c.business : '') + '\n' : '') +
-      (q.lines || []).map(function(l){ return '• ' + l.name + ' × ' + l.qty + ' @ ₹' + l.rate; }).join('\n') +
-      (q.discountPct ? '\nDiscount: ' + q.discountPct + '%' : '') + '\nTotal incl. GST: ' + money2(q.total) + '\nValid till ' + fmtDate(q.validUntil) + (q.notes ? '\n' + q.notes : '') + '\n\nReply YES to confirm and we’ll dispatch.';
-    var phone = String(c.phone || '').replace(/\D/g, '');
-    if(phone.length === 10) phone = '91' + phone;
-    if(!q.sentAt) setQuote(id, { sentAt: new Date().toISOString() });
-    window.open('https://wa.me/' + (phone.length >= 11 ? phone : '') + '?text=' + encodeURIComponent(msg), '_blank');
-  }
-  function quoteToInvoice(id){
-    var q = (store.docs.quotes || {})[id]; if(!q) return;
-    if(q.status !== 'accepted') setQuote(id, { status: 'accepted', decidedAt: new Date().toISOString() });
-    draft = newDraft(q.customerId);
-    draft.gstRate = q.gstRate; draft.notes = q.notes || ''; draft.fromQuote = id;
-    draft.lines = (q.lines || []).map(function(l){ return { productId: l.productId, name: l.name, hsn: l.hsn, qty: l.qty, rate: l.rate }; });
-    document.getElementById('inv').classList.add('hidden');
-    invoiceEditor();
-  }
-  function quoteToCart(id){
-    var q = (store.docs.quotes || {})[id]; if(!q) return;
-    var added = 0;
-    (q.lines || []).forEach(function(l){
-      var p = l.productId && product(l.productId); if(!p) return;
-      var ex = store.cart.find(function(x){ return x.productId === p.id; });
-      if(ex) ex.qty = Math.max(ex.qty, l.qty); else store.cart.push({ productId: p.id, qty: Math.max(T().minPerProduct || 1, l.qty), color: '' });
-      added++;
+  function lastShared(id){ var e = promoLog().find(function(x){ return (x.ids || []).indexOf(id) !== -1; }); return e ? e.at : ''; }
+  function orderedCounts(){ var m = {}; pack().orders.forEach(function(o){ o.lines.forEach(function(l){ if(l.catalogId) m[l.catalogId] = (m[l.catalogId] || 0) + l.qty; }); }); return m; }
+  function renderPromote(){
+    var b = brand(), log = promoLog(), cat = catalogue(), oc = orderedCounts();
+    var stocked = cat.filter(function(p){ return oc[p.id]; }).sort(function(a, c){ return oc[c.id] - oc[a.id]; });
+    var never = stocked.filter(function(p){ return !lastShared(p.id); });
+    var fresh = cat.filter(isNew).slice(0, 8);
+    var weekShares = log.filter(function(x){ return (x.at || '') >= daysAgo(7); }).length;
+    var chips = function(list){ return '<div class="pchips">' + list.slice(0, 8).map(function(p){ return '<button class="pchip" data-a="promo-new" data-id="' + esc(p.id) + '">' + (p.photo ? '<img src="' + esc(p.photo) + '" alt="">' : '') + '<span>' + esc(p.name) + '</span></button>'; }).join('') + '</div>'; };
+    var html = '<div class="card brandcard"><div class="bk-logo" style="background:' + esc(b.color) + '">' + (b.logo ? '<img src="' + b.logo + '" alt="">' : esc((b.name || '?').slice(0, 1).toUpperCase())) + '</div>' +
+      '<div style="flex:1;min-width:0"><div style="font-weight:700">' + esc(b.name || 'Your business') + '</div><div class="muted">' + esc([b.phone, b.tagline].filter(Boolean).join(' · ') || 'Add your phone and tagline') + '</div></div>' +
+      '<button class="btn small" data-a="brand-edit">Brand kit</button></div>';
+    html += '<button class="btn primary block" data-a="promo-new">＋ Make a post</button>';
+    html += '<div class="stats" style="margin-top:12px"><div class="stat"><div class="k">Posts this week</div><div class="v">' + weekShares + '</div></div><div class="stat"><div class="k">Products never promoted</div><div class="v">' + never.length + '</div></div></div>';
+    collectionsLive().forEach(function(c){
+      var items = cat.filter(function(p){ return inCollection(c, p); });
+      if(items.length) html += '<div class="h2">' + esc(c.name) + (c.until ? ' <span class="count">until ' + fmtDate(c.until) + '</span>' : '') + '</div><div class="card"><div class="btns" style="margin:0 0 8px"><button class="btn small primary" data-a="promo-new" data-ids="' + esc(items.slice(0, 4).map(function(p){ return p.id; }).join(',')) + '">Post this collection</button></div>' + chips(items) + '</div>';
     });
-    save(); document.getElementById('inv').classList.add('hidden'); tab = 'cart'; renderAll(); window.scrollTo(0, 0);
-    toast(added ? added + ' product' + (added === 1 ? '' : 's') + ' from ' + q.no + ' in your cart' : 'None of these are in the Thread Tribe shop');
+    if(never.length) html += '<div class="h2">In your stock, not promoted yet</div><div class="card">' + chips(never) + '</div>';
+    if(fresh.length) html += '<div class="h2">New from Thread Tribe</div><div class="card">' + chips(fresh) + '</div>';
+    html += '<div class="h2">Share your catalogue</div><div class="card"><div class="btns" style="margin:0"><button class="btn small" data-a="share-catalog">Catalogue with your prices</button></div></div>';
+    html += '<div class="h2">Recently shared<span class="count">' + log.length + '</span></div>' + (log.length ? '<div class="card">' + log.slice(0, 12).map(function(x){
+      var names = (x.ids || []).map(function(id){ var p = product(id); return p ? p.name : ''; }).filter(Boolean);
+      return '<div class="row"><span style="min-width:0">' + esc(names.join(', ') || 'Products') + '<div class="muted">' + esc((PROMO_FMT[x.fmt] || ['Post'])[0]) + ' · ' + esc(x.how === 'download' ? 'saved' : x.how === 'whatsapp' ? 'WhatsApp' : 'shared') + '</div></span><span class="r muted" style="font-weight:500">' + fmtDate(x.at) + '</span></div>';
+    }).join('') + '</div>' : '<div class="card empty"><b>Nothing shared yet</b>Your first post is two taps away.</div>');
+    return html;
+  }
+  function promoSheet(){
+    var picked = promo.ids.map(product).filter(Boolean), f = PROMO_FMT[promo.fmt];
+    var opts = catalogue().slice().sort(function(a, c){ return a.name.localeCompare(c.name); }).filter(function(p){ return promo.ids.indexOf(p.id) === -1; });
+    openSheet('<div class="sheet-h"><div class="t">Make a post</div><button class="x" data-a="close">✕</button></div>' +
+      '<div class="pchips">' + picked.map(function(p){ return '<span class="pchip on">' + (p.photo ? '<img src="' + esc(p.photo) + '" alt="">' : '') + '<span>' + esc(p.name) + '</span><button class="link" data-a="promo-del" data-id="' + esc(p.id) + '" aria-label="Remove">✕</button></span>'; }).join('') + '</div>' +
+      (picked.length < 4 ? '<select id="promo-add"><option value="">＋ Add a product (up to 4)</option>' + opts.map(function(p){ return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</select>' : '') +
+      '<div class="seg" style="margin:10px 0 0">' + Object.keys(PROMO_FMT).map(function(k){ return '<button type="button" data-a="promo-fmt" data-v="' + k + '" class="' + (promo.fmt === k ? 'on' : '') + '">' + PROMO_FMT[k][0] + '</button>'; }).join('') + '</div>' +
+      '<label class="check"><input type="checkbox" id="promo-price"' + (promo.price ? ' checked' : '') + '> Show my selling price</label>' +
+      '<div class="promo-prev" style="aspect-ratio:' + f[1] + '/' + f[2] + '">' + (picked.length ? '<canvas id="promo-cv"></canvas>' : '<span class="muted">Pick a product to see your post</span>') + '</div>' +
+      '<label>Caption</label><textarea id="promo-cap" style="min-height:110px">' + esc(picked.length ? promoCaption(picked) : '') + '</textarea>' +
+      '<div class="btns"><button class="btn primary" data-a="promo-share"' + (picked.length ? '' : ' disabled') + '>Share</button><button class="btn" data-a="promo-wa"' + (picked.length ? '' : ' disabled') + '>WhatsApp</button>' +
+      '<button class="btn" data-a="promo-save"' + (picked.length ? '' : ' disabled') + '>Save image</button><button class="btn" data-a="promo-copy">Copy caption</button></div>');
+    if(picked.length) drawPromo(picked);
+  }
+  function promoCaption(list){
+    var b = brand(), prev = kit.style, prevPrice = kit.price;
+    kit.style = PROMO_FMT[promo.fmt][3]; kit.price = promo.price;
+    var text = list.length === 1 ? caption(list[0]) :
+      ['✨ Now available at ' + (b.name || 'our store') + ' ✨'].concat(list.map(function(p){ return '• ' + p.name + (promo.price && sellPrice(p) ? ' — ₹' + sellPrice(p) : ''); }))
+        .concat(['Wholesale and bulk orders welcome.', b.phone ? '📞 ' + b.phone : '']).filter(Boolean).join('\n');
+    kit.style = prev; kit.price = prevPrice;
+    return text;
+  }
+  function loadImg(src){
+    return new Promise(function(res){
+      if(!src){ res(null); return; }
+      var im = new Image(); im.crossOrigin = 'anonymous';
+      im.onload = function(){ res(im); }; im.onerror = function(){ res(null); };
+      im.src = src + (/^data:/.test(src) ? '' : (src.indexOf('?') === -1 ? '?' : '&') + 'cors=1');
+    });
+  }
+  function coverDraw(g, im, x, y, w, h){
+    if(!im){ g.fillStyle = '#eef1f5'; g.fillRect(x, y, w, h); return; }
+    var r = Math.max(w / im.width, h / im.height), sw = w / r, sh = h / r;
+    g.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, x, y, w, h);
+  }
+  function fitText(g, text, max, size, weight){
+    var s = size; g.font = weight + ' ' + s + 'px "Space Grotesk", system-ui, sans-serif';
+    while(g.measureText(text).width > max && s > 22){ s -= 2; g.font = weight + ' ' + s + 'px "Space Grotesk", system-ui, sans-serif'; }
+    return s;
+  }
+  async function drawPromo(list){
+    var cv = document.getElementById('promo-cv'); if(!cv) return;
+    var f = PROMO_FMT[promo.fmt], W = f[1], H = f[2], b = brand(), g = cv.getContext('2d');
+    cv.width = W; cv.height = H;
+    var imgs = await Promise.all(list.map(function(p){ return loadImg(p.images && p.images[0] || p.photo); }));
+    var logo = await loadImg(b.logo);
+    if(!document.getElementById('promo-cv')) return;
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    var foot = promo.fmt === 'list' ? 0 : 260, head = 130;
+    // header band with logo and name
+    g.fillStyle = b.color; g.fillRect(0, 0, W, head);
+    if(logo){ g.save(); g.beginPath(); g.arc(85, 65, 45, 0, Math.PI * 2); g.clip(); coverDraw(g, logo, 40, 20, 90, 90); g.restore(); }
+    g.fillStyle = '#ffffff'; fitText(g, b.name || 'Your business', W - 200, 52, '700'); g.fillText(b.name || 'Your business', logo ? 150 : 50, 82);
+    if(promo.fmt === 'list'){
+      var rowH = Math.min(260, (H - head - 140) / list.length), y = head + 30;
+      list.forEach(function(p, i){
+        coverDraw(g, imgs[i], 50, y, rowH - 30, rowH - 30);
+        g.fillStyle = '#16202c'; var fs = fitText(g, p.name, W - rowH - 120, 46, '700'); g.fillText(p.name, rowH + 50, y + 60);
+        if(promo.price && sellPrice(p)){ g.fillStyle = b.color; g.font = '700 54px "Space Grotesk", system-ui, sans-serif'; g.fillText('₹' + sellPrice(p) + ' / pc', rowH + 50, y + 60 + fs + 30); }
+        g.fillStyle = '#617183'; g.font = '500 30px "Space Grotesk", system-ui, sans-serif'; g.fillText('MRP ₹' + Math.round(p.base || 0), rowH + 50, y + rowH - 50);
+        y += rowH;
+      });
+    } else {
+      var area = { x: 0, y: head, w: W, h: H - head - foot }, n = list.length;
+      var cells = n === 1 ? [[0, 0, 1, 1]] : n === 2 ? (promo.fmt === 'status' ? [[0, 0, 1, .5], [0, .5, 1, .5]] : [[0, 0, .5, 1], [.5, 0, .5, 1]]) : n === 3 ? [[0, 0, 1, .5], [0, .5, .5, .5], [.5, .5, .5, .5]] : [[0, 0, .5, .5], [.5, 0, .5, .5], [0, .5, .5, .5], [.5, .5, .5, .5]];
+      cells.forEach(function(c, i){ coverDraw(g, imgs[i], area.x + c[0] * area.w + (c[0] ? 4 : 0), area.y + c[1] * area.h + (c[1] ? 4 : 0), c[2] * area.w - (c[0] ? 4 : 0), c[3] * area.h - (c[1] ? 4 : 0)); });
+      // footer: name(s) + price + contact
+      var fy = H - foot;
+      g.fillStyle = '#ffffff'; g.fillRect(0, fy, W, foot);
+      var title = n === 1 ? list[0].name : n + ' new designs in stock';
+      g.fillStyle = '#16202c'; fitText(g, title, W - 100, 60, '700'); g.fillText(title, 50, fy + 80);
+      var sub = n === 1 && promo.price && sellPrice(list[0]) ? '₹' + sellPrice(list[0]) + ' per piece · bulk orders welcome' : 'Wholesale and bulk orders welcome';
+      g.fillStyle = b.color; fitText(g, sub, W - 100, 40, '700'); g.fillText(sub, 50, fy + 145);
+      var contact = [b.phone ? '📞 ' + b.phone : '', b.tagline].filter(Boolean).join('  ·  ');
+      if(contact){ g.fillStyle = '#617183'; fitText(g, contact, W - 100, 34, '500'); g.fillText(contact, 50, fy + 205); }
+    }
+    promo.img = cv;
+  }
+  function promoBlob(){
+    return new Promise(function(res){ var cv = document.getElementById('promo-cv'); if(!cv){ res(null); return; } try{ cv.toBlob(function(b){ res(b); }, 'image/jpeg', 0.9); }catch(e){ res(null); } });
+  }
+  function promoFileName(){ var p = product(promo.ids[0]); return ((p ? p.name : 'post').replace(/[^\w\- ]/g, '').trim() || 'post') + ' - ' + PROMO_FMT[promo.fmt][0] + '.jpg'; }
+  async function promoShare(how){
+    var text = val('promo-cap'), blob = await promoBlob();
+    if(how === 'save'){
+      if(!blob){ toast('Couldn’t make the image — try another photo'); return; }
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = promoFileName(); document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      logShare('download'); toast('Image saved'); return;
+    }
+    if(how === 'whatsapp'){ copyText(text, 'Caption copied'); window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); logShare('whatsapp'); return; }
+    try{
+      var file = blob ? new File([blob], promoFileName(), { type: 'image/jpeg' }) : null;
+      if(file && navigator.canShare && navigator.canShare({ files: [file] })){ await navigator.share({ files: [file], text: text }); logShare('share'); toast('Shared'); return; }
+    }catch(e){ if(e && e.name === 'AbortError') return; }
+    // No file sharing on this device: save the image and copy the caption instead.
+    await promoShare('save'); copyText(text, 'Image saved and caption copied — post them together');
+  }
+  function brandSheet(){
+    var b = brand();
+    openSheet('<div class="sheet-h"><div class="t">Brand kit</div><button class="x" data-a="close">✕</button></div>' +
+      '<label>Business name</label><input id="bk-name" value="' + esc(b.name) + '">' +
+      '<label>Phone on posts</label><input id="bk-phone" inputmode="tel" value="' + esc(b.phone) + '">' +
+      '<label>Tagline (optional)</label><input id="bk-tag" maxlength="60" placeholder="e.g. Toys wholesale · Sadar Bazar" value="' + esc(b.tagline) + '">' +
+      '<div class="grid2"><div><label>Brand colour</label><input id="bk-color" type="color" value="' + esc(b.color) + '" style="height:48px;padding:4px"></div>' +
+      '<div><label>Logo</label><label class="btn small" style="margin:0;width:100%">' + (b.logo ? 'Change logo' : 'Upload logo') + '<input id="bk-logo" type="file" accept="image/*" style="display:none"></label></div></div>' +
+      '<div id="bk-prev" style="margin-top:10px">' + (b.logo ? '<img src="' + b.logo + '" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">' : '') + '</div>' +
+      '<div class="btns"><button class="btn primary block" data-a="brand-save">Save</button></div>');
+  }
+  var pendingLogo = null;
+  function shrinkLogo(file){
+    return new Promise(function(res){
+      var fr = new FileReader();
+      fr.onload = function(){ var im = new Image(); im.onload = function(){ var s = Math.min(1, 240 / Math.max(im.width, im.height)), cv = document.createElement('canvas'); cv.width = Math.round(im.width * s); cv.height = Math.round(im.height * s); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); var d = cv.toDataURL('image/png'); res(d.length > 90000 ? cv.toDataURL('image/jpeg', 0.85) : d); }; im.onerror = function(){ res(''); }; im.src = fr.result; };
+      fr.onerror = function(){ res(''); }; fr.readAsDataURL(file);
+    });
   }
 
   // ======================= account =======================
@@ -2468,7 +2482,7 @@
     if(os){ orderSeg = os.getAttribute('data-oseg'); renderAll(); return; }
     var bs = e.target.closest('[data-bseg]');
     if(bs){ bizSeg = bs.getAttribute('data-bseg'); bizQuery = ''; renderAll(); return; }
-    if(e.target.id === 'scrim'){ closeSheet(); draft = null; qdraft = null; return; }
+    if(e.target.id === 'scrim'){ closeSheet(); draft = null; return; }
     if(e.target.closest('#sync')){ flushDocs(); refreshSoon(0); toast('Refreshing…'); return; }
     var a = e.target.closest('[data-a]');
     if(!a) return;
@@ -2537,7 +2551,7 @@
     else if(act === 'tt-invoice'){ closeSheet(); showTTInvoice(id); }
     else if(act === 'print') window.print();
     else if(act === 'close-inv') document.getElementById('inv').classList.add('hidden');
-    else if(act === 'close'){ closeSheet(); draft = null; qdraft = null; }
+    else if(act === 'close'){ closeSheet(); draft = null; }
     // business
     else if(act === 'new-invoice'){ draft = newDraft(); invoiceEditor(); }
     else if(act === 'invoice-for'){ draft = newDraft(id); invoiceEditor(); }
@@ -2552,21 +2566,24 @@
     else if(act === 'save-customer'){
       var cid = saveCustomer(id);
       if(!cid) return;
-      if(qdraft){ qdraft.customerId = cid; quoteEditor(); } else if(draft){ draft.customerId = cid; invoiceEditor(); } else { closeSheet(); renderAll(); }
+      if(draft){ draft.customerId = cid; invoiceEditor(); } else { closeSheet(); renderAll(); }
       toast('Customer saved');
     }
     else if(act === 'del-customer'){ if(confirm('Delete this customer? Their past invoices stay.')){ remove('customers', id); closeSheet(); renderAll(); } }
-    // quotations
-    else if(act === 'new-quote'){ qdraft = newQuote(); quoteEditor(); }
-    else if(act === 'quote') showQuote(id);
-    else if(act === 'edit-quote') editQuote(id);
-    else if(act === 'q-del-line'){ readQuoteForm(); qdraft.lines.splice(+a.getAttribute('data-i'), 1); quoteEditor(); }
-    else if(act === 'save-quote') saveQuote();
-    else if(act === 'share-quote'){ shareQuote(id); showQuote(id); }
-    else if(act === 'quote-won') quoteToInvoice(id);
-    else if(act === 'quote-lost'){ setQuote(id, { status: 'lost', decidedAt: new Date().toISOString() }); showQuote(id); renderAll(); toast('Marked as lost'); }
-    else if(act === 'quote-buy') quoteToCart(id);
-    else if(act === 'del-quote'){ var dq = (store.docs.quotes || {})[id]; if(dq && confirm('Delete quote ' + dq.no + '?')){ remove('quotes', id); document.getElementById('inv').classList.add('hidden'); renderAll(); toast('Quote deleted'); } }
+    // promote
+    else if(act === 'promo-new'){ var pid = a.getAttribute('data-id'), pids = a.getAttribute('data-ids'); promo.ids = pids ? pids.split(',').filter(product).slice(0, 4) : pid && product(pid) ? [pid] : []; promoSheet(); }
+    else if(act === 'promo-del'){ promo.ids = promo.ids.filter(function(x){ return x !== id; }); promoSheet(); }
+    else if(act === 'promo-fmt'){ promo.fmt = a.getAttribute('data-v'); promoSheet(); }
+    else if(act === 'promo-share') await promoShare('share');
+    else if(act === 'promo-wa') await promoShare('whatsapp');
+    else if(act === 'promo-save') await promoShare('save');
+    else if(act === 'promo-copy') copyText(val('promo-cap'), 'Caption copied');
+    else if(act === 'brand-edit'){ pendingLogo = null; brandSheet(); }
+    else if(act === 'brand-save'){
+      var bp = { bizName: val('bk-name'), phone: val('bk-phone'), tagline: val('bk-tag').slice(0, 60), brandColor: val('bk-color') || '#1f9e93' };
+      if(pendingLogo) bp.logo = pendingLogo;
+      saveSettings(bp); pendingLogo = null; closeSheet(); renderAll(); toast('Brand kit saved');
+    }
     else if(act === 'add-cslab'){
       var mn = Math.round(num(val('csMin'))), pc = Math.max(0, Math.min(100, num(val('csPct'))));
       if(mn < 1 || !pc){ toast('Enter pieces and a discount %'); return; }
@@ -2622,22 +2639,9 @@
     }
     else if(t.id === 'markup'){ saveSettings({ markup: Math.max(0, num(t.value)) }); renderAll(); }
     else if(t.id === 'maxCust'){ saveSettings({ maxCustDiscount: Math.max(0, Math.min(100, num(t.value))) }); toast('Saved'); }
-    else if(t.id === 'q-cust'){
-      if(t.value === '__new'){ readQuoteForm(); customerSheet(null); return; }
-      readQuoteForm(); quoteEditor();
-    }
-    else if(t.id === 'q-add'){
-      readQuoteForm();
-      if(t.value === '__custom'){
-        var qnm = prompt('Item name'); if(!qnm){ quoteEditor(); return; }
-        qdraft.lines.push({ productId: '', name: qnm.slice(0, 120), qty: 1, rate: num(prompt('Rate per piece (₹)', '0')), hsn: settings().hsn });
-      } else if(t.value){
-        var qp = product(t.value), qex = qdraft.lines.find(function(l){ return l.productId === t.value; });
-        if(qex) qex.qty += 25; else if(qp) qdraft.lines.push({ productId: qp.id, name: qp.name, qty: 25, rate: sellPrice(qp), hsn: (store.docs.prices[qp.id] && store.docs.prices[qp.id].hsn) || settings().hsn });
-      }
-      quoteEditor();
-    }
-    else if(t.hasAttribute('data-qqty') || t.hasAttribute('data-qrate') || t.id === 'q-gst' || t.id === 'q-valid'){ readQuoteForm(); quoteEditor(); }
+    else if(t.id === 'promo-add' && t.value){ if(promo.ids.length < 4) promo.ids.push(t.value); promoSheet(); }
+    else if(t.id === 'promo-price'){ promo.price = t.checked; promoSheet(); }
+    else if(t.id === 'bk-logo' && t.files && t.files[0]){ var lf = t.files[0]; t.value = ''; shrinkLogo(lf).then(function(d){ pendingLogo = d; var bpv = document.getElementById('bk-prev'); if(bpv) bpv.innerHTML = d ? '<img src="' + d + '" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">' : ''; }); }
   });
   document.addEventListener('input', function(e){
     var id = e.target.id;
