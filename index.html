@@ -980,11 +980,6 @@
     var html = '<div class="home">';
     // how am I doing
     html += '<button class="quote" data-a="next-quote" title="Tap for another"><span class="q-ic">💡</span><span class="q-t">' + esc(quoteOfDay()) + '</span></button>';
-    html += '<button class="kpi" data-a="insights"><div class="kpi-row">' +
-      '<div class="kpi-col"><div class="hk">You earned</div><div class="hv">' + (invoicing ? money(ss.year) : '—') + '</div><div class="hs">' + (invoicing ? money(ss.month) + ' this month' : 'Start billing in Business') + '</div></div>' +
-      '<div class="kpi-div"></div>' +
-      '<div class="kpi-col"><div class="hk">You saved</div><div class="hv">' + money(sv.year) + '</div><div class="hs">' + money(sv.month) + ' this month</div></div>' +
-      '</div><div class="kpi-foot"><span>From your buyers · with Thread Tribe · 12 months</span><span>Details ›</span></div></button>';
     // one-tap actions
     var dueCount = dues().length;
     html += '<div class="qa">' +
