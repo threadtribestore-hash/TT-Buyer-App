@@ -185,7 +185,7 @@
   .kpi-bars i{ flex:1; background:rgba(255,255,255,0.45); border-radius:4px 4px 2px 2px; }
   .kpi-bars i:last-child{ background:#fff; }
   .kpi-foot{ font-size:11px; opacity:0.75; margin-top:6px; }
-  .qa{ display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:6px; }
+  .qa{ display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:6px; margin-bottom:6px; }
   .qa button{ display:flex; flex-direction:column; align-items:center; gap:6px; background:none; border:none; padding:4px 0; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; text-align:center; line-height:1.2; }
   .qa .qi{ position:relative; width:54px; height:54px; border-radius:16px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow); }
   .qa .qi svg{ width:24px; height:24px; fill:none; stroke:var(--accent); stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
@@ -940,6 +940,7 @@
     restock: '<svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 11h11L21 7H7"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/></svg>',
     share: '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
     catalog: '<svg viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
+    custom: '<svg viewBox="0 0 24 24"><path d="M12 3l2.2 4.6 5 .7-3.6 3.5.9 5L12 14.5 7.5 16.8l.9-5L4.8 8.3l5-.7z"/><path d="M5 20h14"/></svg>',
     collect: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg>'
   };
   function greeting(){ var h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; }
@@ -987,9 +988,10 @@
     // one-tap actions
     var dueCount = dues().length;
     html += '<div class="qa">' +
-      (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>New invoice</button>' : '') +
-      (biz ? '<button data-a="new-quote"><span class="qi">' + ICONS.quote + '</span>New quote</button>' : '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>') +
+      (biz ? '<button data-a="new-invoice"><span class="qi">' + ICONS.invoice + '</span>Invoice</button>' : '') +
+      (biz ? '<button data-a="new-quote"><span class="qi">' + ICONS.quote + '</span>Quote</button>' : '<button data-go="shop"><span class="qi">' + ICONS.restock + '</span>Restock</button>') +
       '<button data-a="share-catalog"><span class="qi">' + ICONS.catalog + '</span>Catalogue</button>' +
+      '<button data-a="pj-request"><span class="qi">' + ICONS.custom + '</span>Custom</button>' +
       (biz ? '<button data-a="home-collect"><span class="qi">' + ICONS.collect + (dueCount ? '<b class="qb">' + dueCount + '</b>' : '') + '</span>Collect</button>' : '') +
       '</div>';
     // what needs me (fits the screen; the rest behind "+N more")
