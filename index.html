@@ -373,7 +373,6 @@
   .install ol li{ margin:3px 0; }
   .updbar{ position:fixed; top:calc(10px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:300; background:var(--accent); color:var(--accent-ink); border:none; border-radius:20px; padding:10px 18px; font-weight:700; font-size:14px; box-shadow:0 6px 20px rgba(0,0,0,0.2); cursor:pointer; }
   .signin{ max-width:420px; margin:40px auto 0; }
-  .gbtn{ display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; color:#1f1f1f; border-color:#dadce0; font-weight:600; }
   .signin h1{ font-size:26px; letter-spacing:-0.4px; margin-bottom:6px; }
   .err{ color:var(--red); font-size:13.5px; margin-top:10px; min-height:18px; }
 
@@ -462,7 +461,7 @@
   function blankDocs(){ var d = {}; COLLS.forEach(function(c){ d[c] = {}; }); return d; }
   var store = { pack: null, clientId: '', email: '', cart: [], requests: [], filt: blankFilt(), docs: blankDocs(), pending: [], reorderOf: '' };
   var sb = null, session = null, channel = null, live = null;
-  var cloud = { status: '', otpEmail: '', err: '', choosing: null, rtDb: '', rtLive: '', missing: false, refreshTimer: null, booting: true, sending: false, google: false, useCode: false, bizMissing: false, flushing: false };
+  var cloud = { status: '', otpEmail: '', err: '', choosing: null, rtDb: '', rtLive: '', missing: false, refreshTimer: null, booting: true, sending: false, bizMissing: false, flushing: false };
   var tab = 'home', shopSeg = 'all', shopQuery = '', orderSeg = 'active', bizSeg = 'invoices', bizQuery = '';
   var draft = null; // invoice being written
 
@@ -779,7 +778,6 @@
     sb = window.supabase.createClient(CLOUD_URL, CLOUD_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'tt-buyer-auth' } });
     var s = await sb.auth.getSession();
     session = s.data && s.data.session;
-    if(!session) await googleReady();
     cloud.booting = false;
     sb.auth.onAuthStateChange(function(ev, sess){ session = sess; if(ev === 'SIGNED_OUT') renderAll(); });
     loadWebToys().then(function(){ if(store.pack) renderAll(); });
@@ -825,44 +823,20 @@
       '</div></div>';
   }
 
-  // Sign in with Google; the emailed code stays as a fallback for business emails without a
-  // Google account, and for in-app browsers (Instagram, WhatsApp) where Google blocks sign-in.
-  // The Google button only shows once the provider is switched on in Supabase.
-  async function googleReady(){
-    try{
-      var r = await fetch(CLOUD_URL + '/auth/v1/settings', { headers: { apikey: CLOUD_KEY } });
-      cloud.google = !!((await r.json()).external || {}).google;
-    }catch(e){ cloud.google = false; }
-  }
-  async function signInGoogle(){
-    cloud.err = '';
-    var r = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } });
-    if(r.error){ cloud.err = friendlyErr(r.error); renderSignin(); }
-  }
   function renderSignin(){
     var el = document.getElementById('signin');
-    var codeFirst = !cloud.google || cloud.useCode || inAppBrowser();
-    if(cloud.otpEmail){
+    if(!cloud.otpEmail){
+      el.innerHTML = '<div class="signin card"><h1>Sign in</h1>' +
+        '<label>Email</label><input id="em" type="email" autocomplete="email" inputmode="email" value="' + esc(store.email || '') + '">' +
+        '<div class="btns"><button class="btn primary block" data-a="send-code">Send code</button></div><div class="err">' + esc(cloud.err) + '</div></div>' +
+        '<div style="max-width:420px;margin:12px auto 0">' + installCard(false) + '</div>';
+    } else {
       el.innerHTML = '<div class="signin card"><h1>Check your email</h1><p class="muted" style="font-size:15px;">We sent a code to <b style="color:var(--text);">' + esc(cloud.otpEmail) + '</b>. Check spam if it’s not there in a minute.</p>' +
         '<label>Code</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10">' +
         '<div class="btns"><button class="btn primary block" data-a="verify">Sign in</button></div>' +
         '<button class="link" data-a="restart">Use a different email</button><div class="err">' + esc(cloud.err) + '</div></div>';
-    } else if(!codeFirst){
-      el.innerHTML = '<div class="signin card"><h1>Sign in</h1>' +
-        '<div class="btns"><button class="btn block gbtn" data-a="google">' + G_LOGO + 'Continue with Google</button></div>' +
-        '<button class="link" data-a="use-code">Use an email code instead</button><div class="err">' + esc(cloud.err) + '</div></div>' +
-        '<div style="max-width:420px;margin:12px auto 0">' + installCard(false) + '</div>';
-    } else {
-      el.innerHTML = '<div class="signin card"><h1>Sign in</h1>' +
-        (cloud.google && inAppBrowser() ? '<p class="muted" style="font-size:14px;">To sign in with Google, open this page in Chrome or Safari. Or get a code by email here.</p>' : '') +
-        '<label>Email</label><input id="em" type="email" autocomplete="email" inputmode="email" value="' + esc(store.email || '') + '">' +
-        '<div class="btns"><button class="btn primary block" data-a="send-code">Send code</button></div>' +
-        (cloud.google && !inAppBrowser() ? '<button class="link" data-a="use-google">Continue with Google instead</button>' : '') +
-        '<div class="err">' + esc(cloud.err) + '</div></div>' +
-        '<div style="max-width:420px;margin:12px auto 0">' + installCard(false) + '</div>';
     }
   }
-  var G_LOGO = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>';
   async function sendCode(){
     var email = val('em').toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ cloud.err = 'Enter a valid email.'; renderSignin(); return; }
@@ -2701,9 +2675,6 @@
       var link = location.origin + location.pathname;
       (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function(){ toast('Link copied — paste it into Chrome or Safari'); }).catch(function(){ prompt('Copy this link:', link); });
     }
-    else if(act === 'google') signInGoogle();
-    else if(act === 'use-code'){ cloud.useCode = true; cloud.err = ''; renderSignin(); }
-    else if(act === 'use-google'){ cloud.useCode = false; cloud.err = ''; renderSignin(); }
     else if(act === 'send-code') sendCode();
     else if(act === 'verify') verify();
     else if(act === 'restart'){ cloud.otpEmail = ''; cloud.err = ''; renderSignin(); }
