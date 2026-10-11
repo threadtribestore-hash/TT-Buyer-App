@@ -286,6 +286,9 @@
   .fchip.on{ border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
   .promo-prev{ margin-top:12px; width:100%; max-height:62vh; border-radius:14px; overflow:hidden; background:var(--panel2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
   .promo-prev canvas{ width:100%; height:100%; object-fit:contain; display:block; }
+  .im{ padding:10px 0; border-bottom:1px solid var(--line); }
+  .im:last-child{ border-bottom:0; }
+  .im .cbar{ height:6px; }
   .prodbox{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
   .prodbox > div{ background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
   .prodbox .k{ font-size:12px; color:var(--dim); }
@@ -1601,12 +1604,20 @@
       return '<div class="st ' + (done ? 'done' : k === i ? 'now' : '') + '"><b>' + (done ? '✓' : k + 1) + '</b>' + STATUS[s] + '</div>';
     }).join('') + '</div>';
   }
-  // Pieces made: what Studio marks as made, or the good pieces Bambuddy has finished for this
-  // order if that's higher (Studio's count is updated by hand; Bambuddy's as plates finish).
+  // Pieces made: the per-item counts Studio marks as made. Bambuddy counts objects on a plate,
+  // not finished products, so its totals feed printers / hours / pass rate only.
+  function lineMade(l){ return Math.min(l.qty, l.made || 0); }
   function madeOf(o){
-    var qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), studio = o.lines.reduce(function(s, l){ return s + l.made; }, 0);
-    var printed = o.production ? (o.production.unitsGood || 0) : 0;
-    return Math.min(qty, Math.max(studio, printed));
+    return o.lines.reduce(function(s, l){ return s + lineMade(l); }, 0);
+  }
+  function itemsMade(o){
+    return '<div class="h2">Each item</div><div class="card">' + o.lines.map(function(l){
+      var m = lineMade(l), pct = l.qty ? Math.round(100 * m / l.qty) : 0;
+      var tag = m >= l.qty ? '<span class="chip ok">Done</span>' : m > 0 ? '<span class="chip new">In progress</span>' : '<span class="chip">Not started</span>';
+      return '<div class="im"><div class="row" style="padding:0;border:0"><div style="min-width:0"><div style="font-weight:600">' + esc(l.name) + '</div>' +
+        '<div class="muted">' + m + ' of ' + l.qty + ' made' + (l.color ? ' · ' + esc(l.color) : '') + '</div></div>' + tag + '</div>' +
+        '<div class="cbar"><i style="width:' + pct + '%' + (pct >= 100 ? ';background:var(--green)' : '') + '"></i></div></div>';
+    }).join('') + '</div>';
   }
   function productionBox(o){
     var p = o.production, qty = o.lines.reduce(function(s, l){ return s + l.qty; }, 0), made = madeOf(o);
@@ -1614,13 +1625,13 @@
     var pct = qty ? Math.round(100 * made / qty) : 0;
     var done = '<div class="done-bar"><div class="row" style="padding:0;border:0"><b>' + pct + '% complete</b><span class="muted">' + made + ' of ' + qty + ' pieces</span></div>' +
       '<div class="cbar"><i style="width:' + pct + '%' + (pct >= 100 ? ';background:var(--green)' : '') + '"></i></div></div>';
-    var cells = '<div><div class="k">Pieces made</div><div class="v">' + made + ' / ' + qty + '</div></div>';
+    var cells = '';
     if(p && p.printerCount) cells += '<div><div class="k">Printers on your order</div><div class="v">' + p.printerCount + (p.printingNow ? ' <span class="muted" style="font-size:13px">· ' + p.printingNow + ' printing now</span>' : '') + '</div></div>';
     if(p && p.printHours) cells += '<div><div class="k">Print time so far</div><div class="v">' + p.printHours + ' hrs</div></div>';
     if(o.reservedHours) cells += '<div><div class="k">Print time reserved</div><div class="v">' + o.reservedHours + ' hrs</div></div>';
     var plates = p ? p.platesDone + p.platesFailed : 0;
     if(p && plates >= 3) cells += '<div><div class="k">Quality pass rate</div><div class="v">' + Math.round(100 * p.platesDone / plates) + '%</div></div>';
-    return '<div class="h2">Production</div>' + done + '<div class="prodbox">' + cells + '</div>';
+    return '<div class="h2">Production</div>' + done + itemsMade(o) + (cells ? '<div class="prodbox">' + cells + '</div>' : '');
   }
   function orderSheet(id){
     var o = pack().orders.find(function(x){ return x.id === id; }); if(!o) return;
@@ -1630,7 +1641,7 @@
       stepper(o) + productionBox(o) +
       '<div class="h2">Items</div><div class="card">' + o.lines.map(function(l){
         return '<div class="row"><div><div style="font-weight:600">' + esc(l.name) + '</div><div class="muted">' + l.qty + ' × ' + money2(l.unitPrice) + (l.color ? ' · ' + esc(l.color) : '') +
-          (o.status === 'in_production' ? ' · ' + l.made + ' made' : '') + '</div></div><span class="r">' + money(l.qty * l.unitPrice) + '</span></div>';
+          '</div></div><span class="r">' + money(l.qty * l.unitPrice) + '</span></div>';
       }).join('') + '</div>' +
       (o.status === 'shipped' || o.trackingNo || o.dispatchBy ? '<div class="h2">Delivery</div><div class="card">' +
         (o.dispatchBy && o.status !== 'shipped' && o.status !== 'delivered' ? '<div class="row"><span class="muted">Expected dispatch</span><span class="r">' + fmtDate(o.dispatchBy) + '</span></div>' : '') +
