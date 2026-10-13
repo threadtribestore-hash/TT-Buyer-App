@@ -406,6 +406,7 @@
   .inv .cat-foot{ margin-top:18px; color:#444; }
   @media print{ .inv .cat-grid{ grid-template-columns:repeat(4, 1fr); } }
   @media print{ .inv .bar2{ display:none; } body > *:not(.inv){ display:none !important; } .inv{ position:static; padding:0; } }
+  details.faq{border-bottom:1px solid var(--line,#e5e7eb);padding:10px 0} details.faq summary{cursor:pointer;font-weight:600;list-style:none} details.faq summary::-webkit-details-marker{display:none} details.faq summary::after{content:'+';float:right;opacity:.6} details.faq[open] summary::after{content:'\2212'}
 </style>
 </head>
 <body>
@@ -2427,7 +2428,17 @@
       [['Business', c.name], ['Contact', c.contact], ['Phone', c.phone], ['Email', c.email], ['GSTIN', c.gstin], ['Address', [c.address, c.city, c.state].filter(Boolean).join(', ')]].map(function(r){
         return '<div class="row"><span class="muted">' + r[0] + '</span><span class="r" style="white-space:normal">' + esc(r[1] || '—') + '</span></div>';
       }).join('') + '<div class="btns"><button class="btn small" data-a="edit-profile">Request a change</button><button class="btn small" data-a="message">Message Thread Tribe</button></div></div>' +
+      faqHtml() +
       '<div class="btns"><button class="btn small danger" data-a="signout">Sign out</button></div>';
+  }
+  // Help & FAQ written by Thread Tribe in Studio; {minPerProduct} and {minOrder} come from this partner's terms.
+  function faqHtml(){
+    var list = (pack().faq || []).filter(function(f){ return f && f.q && f.a; }), t = T();
+    if(!list.length) return '';
+    var fill = function(s){ return String(s).replace(/\{minPerProduct\}/g, t.minPerProduct).replace(/\{minOrder\}/g, t.minOrder); };
+    return '<div class="h2">Help & FAQ</div><div class="card">' + list.map(function(f){
+      return '<details class="faq"><summary>' + esc(fill(f.q)) + '</summary><div class="muted" style="padding:4px 0 10px;line-height:1.5">' + esc(fill(f.a)) + '</div></details>';
+    }).join('') + '<div class="btns"><button class="btn small" data-a="message">Still stuck? Message Thread Tribe</button></div></div>';
   }
   function profileSheet(){
     var c = pack().client;
