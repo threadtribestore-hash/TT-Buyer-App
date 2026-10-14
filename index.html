@@ -2477,7 +2477,10 @@
       '</table><table class="tot">' +
       (Math.round(sub) !== Math.round(o.subtotal) ? '<tr><td>Order discount</td><td class="n">−' + money2(sub - o.subtotal) + '</td></tr>' : '') +
       '<tr><td>Taxable value</td><td class="n">' + money2(o.subtotal) + '</td></tr>' +
-      (o.gstRate ? '<tr><td>GST ' + o.gstRate + '%</td><td class="n">' + money2(o.gst) + '</td></tr>' : '') +
+      (o.gstRate ? (o.gstSplit ? (o.gstSplit.inter
+          ? '<tr><td>IGST ' + o.gstSplit.igstRate + '%</td><td class="n">' + money2(o.gstSplit.igst) + '</td></tr>'
+          : '<tr><td>CGST ' + o.gstSplit.cgstRate + '%</td><td class="n">' + money2(o.gstSplit.cgst) + '</td></tr><tr><td>SGST ' + o.gstSplit.sgstRate + '%</td><td class="n">' + money2(o.gstSplit.sgst) + '</td></tr>')
+        : '<tr><td>GST ' + o.gstRate + '%</td><td class="n">' + money2(o.gst) + '</td></tr>') : '') +
       '<tr><td><b>Total</b></td><td class="n"><b>' + money2(o.total) + '</b></td></tr>' +
       '<tr><td>Paid</td><td class="n">' + money2(o.paid) + '</td></tr><tr><td><b>Balance due</b></td><td class="n"><b>' + money2(o.due) + '</b></td></tr></table>' +
       '<p style="color:#666;font-size:12px">Copy of the invoice issued by ' + esc(b.name) + '. For the GST-filed original, ask Thread Tribe.</p></div>';
