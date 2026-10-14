@@ -1211,7 +1211,7 @@
     if(/delhivery/.test(c)) return 'https://www.delhivery.com/track/package/' + no;
     if(/shiprocket/.test(c)) return 'https://shiprocket.co/tracking/' + no;
     if(/blue ?dart/.test(c)) return 'https://www.bluedart.com/web/guest/trackdartresult?trackFor=0&trackNo=' + no;
-    if(trk[o.id] && trk[o.id].tracking_url && /^https:\/\//.test(trk[o.id].tracking_url)) return trk[o.id].tracking_url;
+    if(o.id && trk[o.id] && trk[o.id].tracking_url && /^https:\/\//.test(trk[o.id].tracking_url)) return trk[o.id].tracking_url;
     return 'https://www.google.com/search?q=' + encodeURIComponent((o.courier || 'courier') + ' tracking ' + (o.trackingNo || ''));
   }
   function shipLine(o){
@@ -1651,6 +1651,12 @@
         (o.trackingNo ? '<div class="row"><span class="muted">Tracking / AWB</span><span class="r">' + esc(o.trackingNo) + '</span></div>' +
           '<div id="trkBox" data-id="' + esc(o.id) + '">' + trkHtml(o) + '</div>' +
           '<div class="btns"><a class="btn primary small" id="trkLink" href="' + esc(trackUrl(o)) + '" target="_blank" rel="noopener">Courier page</a><button class="btn small" data-a="copy-awb" data-v="' + esc(o.trackingNo) + '">Copy AWB</button></div>' : '') +
+        // Orders sent in more than one parcel: each extra AWB with its own courier page.
+        ((o.moreShipments || []).length ? '<div class="muted" style="margin:12px 0 2px">Sent in ' + (o.moreShipments.length + 1) + ' parcels. Parcel 1 is above.</div>' + o.moreShipments.map(function(x, i){
+          var u = trackUrl({ courier: x.courier, trackingNo: x.trackingNo, id: '' });
+          return '<div class="row"><span class="muted">Parcel ' + (i + 2) + (x.courier ? ' · ' + esc(x.courier) : '') + '</span><span class="r">' + esc(x.trackingNo) + '</span></div>' +
+            '<div class="btns"><a class="btn small" href="' + esc(u) + '" target="_blank" rel="noopener">Courier page</a><button class="btn small" data-a="copy-awb" data-v="' + esc(x.trackingNo) + '">Copy AWB</button></div>';
+        }).join('') : '') +
         '</div>' : '') +
       '<div class="card"><div class="row"><span class="muted">Ordered</span><span class="r">' + (fmtDate(o.orderedDate) || '—') + '</span></div>' +
       (o.dueDate ? '<div class="row"><span class="muted">Due</span><span class="r">' + fmtDate(o.dueDate) + '</span></div>' : '') +
