@@ -407,6 +407,14 @@
   @media print{ .inv .cat-grid{ grid-template-columns:repeat(4, 1fr); } }
   @media print{ .inv .bar2{ display:none; } body > *:not(.inv){ display:none !important; } .inv{ position:static; padding:0; } }
   details.faq{border-bottom:1px solid var(--line,#e5e7eb);padding:10px 0} details.faq summary{cursor:pointer;font-weight:600;list-style:none} details.faq summary::-webkit-details-marker{display:none} details.faq summary::after{content:'+';float:right;opacity:.6} details.faq[open] summary::after{content:'\2212'}
+
+  /* Thread Tribe logo: the logomark beside the page title, the full lockup above sign-in.
+     Drawn as a mask so it takes the theme's text colour in light and dark mode. */
+  .top-left{ position:relative; padding-left:50px; }
+  .top-left::before{ content:""; position:absolute; left:0; top:50%; width:40px; height:24px; transform:translateY(-50%);
+    background:var(--text); -webkit-mask:url(brand/tt-logomark.svg) center/contain no-repeat; mask:url(brand/tt-logomark.svg) center/contain no-repeat; }
+  #signin:not(.hidden)::before{ content:""; display:block; width:170px; height:98px; margin:28px auto -8px;
+    background:var(--text); -webkit-mask:url(brand/tt-lockup.svg) center/contain no-repeat; mask:url(brand/tt-lockup.svg) center/contain no-repeat; }
 </style>
 </head>
 <body>
