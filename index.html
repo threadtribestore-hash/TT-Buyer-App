@@ -470,6 +470,8 @@
   function blankDocs(){ var d = {}; COLLS.forEach(function(c){ d[c] = {}; }); return d; }
   var store = { pack: null, clientId: '', email: '', cart: [], requests: [], filt: blankFilt(), docs: blankDocs(), pending: [], reorderOf: '' };
   var sb = null, session = null, channel = null, live = null;
+  // For notify-app.js (the 🔔 inbox and phone alerts).
+  window.TTApp = { sb: function(){ return session ? sb : null; }, email: function(){ return session && session.user ? session.user.email : ''; } };
   var cloud = { status: '', otpEmail: '', err: '', choosing: null, rtDb: '', rtLive: '', missing: false, refreshTimer: null, booting: true, sending: false, bizMissing: false, flushing: false };
   var tab = 'home', shopSeg = 'all', shopQuery = '', orderSeg = 'active', bizSeg = 'invoices', bizQuery = '';
   var draft = null; // invoice being written
@@ -2941,5 +2943,7 @@
   boot();
 })();
 </script>
+<script>window.TT_NOTIFY = { app: 'buyer', mount: '#top' };</script>
+<script src="notify-app.js?v=1"></script>
 </body>
 </html>
