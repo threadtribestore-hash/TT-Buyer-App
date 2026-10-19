@@ -2492,7 +2492,8 @@
       o.lines.map(function(l){ return '<tr><td>' + esc(l.name) + (l.color ? ' (' + esc(l.color) + ')' : '') + '</td><td class="n">' + l.qty + '</td><td class="n">' + money2(l.unitPrice) + '</td><td class="n">' + money2(l.qty * l.unitPrice) + '</td></tr>'; }).join('') +
       '</table><table class="tot">' +
       (Math.round(sub) !== Math.round(o.subtotal) ? '<tr><td>Order discount</td><td class="n">−' + money2(sub - o.subtotal) + '</td></tr>' : '') +
-      '<tr><td>Taxable value</td><td class="n">' + money2(o.subtotal) + '</td></tr>' +
+      (o.delivery ? '<tr><td>Delivery charges</td><td class="n">' + money2(o.delivery) + '</td></tr>' : '') +
+      '<tr><td>Taxable value</td><td class="n">' + money2(o.subtotal + (o.delivery || 0)) + '</td></tr>' +
       (o.gstRate ? (o.gstSplit ? (o.gstSplit.inter
           ? '<tr><td>IGST ' + o.gstSplit.igstRate + '%</td><td class="n">' + money2(o.gstSplit.igst) + '</td></tr>'
           : '<tr><td>CGST ' + o.gstSplit.cgstRate + '%</td><td class="n">' + money2(o.gstSplit.cgst) + '</td></tr><tr><td>SGST ' + o.gstSplit.sgstRate + '%</td><td class="n">' + money2(o.gstSplit.sgst) + '</td></tr>')
