@@ -158,11 +158,15 @@
   .att-bar i{ display:block; height:100%; background:var(--accent); border-radius:3px; }
   .att-row.more .att-t{ color:var(--accent); }
   .strip{ flex:1; min-height:0; display:flex; flex-direction:column; }
-  .bigcustom{ flex:1; min-height:150px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; width:100%; border:1.5px dashed var(--accent); border-radius:20px; background:var(--accent-soft); color:var(--text); cursor:pointer; padding:20px; }
-  .bigcustom:active{ transform:scale(0.99); }
-  .bigcustom .bc-ic{ width:64px; height:64px; border-radius:20px; background:var(--accent); display:flex; align-items:center; justify-content:center; }
-  .bigcustom .bc-ic svg{ width:32px; height:32px; fill:none; stroke:var(--accent-ink); stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
-  .bigcustom .bc-t{ font-size:19px; font-weight:700; letter-spacing:-0.2px; } .bigcustom .bc-s{ font-size:13.5px; color:var(--dim); }
+  .bigcustom{ margin-top:auto; flex:none; border:1px solid var(--line); border-radius:16px; background:linear-gradient(135deg, var(--accent-soft), var(--panel) 70%); box-shadow:var(--shadow); overflow:hidden; }
+  .bigcustom .bc-main{ display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; border:none; background:none; color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+  .bigcustom .bc-main:active{ background:var(--accent-soft); }
+  .bigcustom .bc-ic{ flex:none; width:44px; height:44px; border-radius:13px; background:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .bigcustom .bc-ic svg{ width:22px; height:22px; fill:none; stroke:var(--accent-ink); stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .bigcustom .bc-b{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .bigcustom .bc-t{ font-size:15.5px; font-weight:700; letter-spacing:-0.2px; } .bigcustom .bc-s{ font-size:12.5px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bigcustom .bc-go{ flex:none; background:var(--accent); color:var(--accent-ink); font-weight:600; font-size:13px; padding:7px 13px; border-radius:20px; }
+  .bigcustom .bc-mine{ display:flex; justify-content:space-between; width:100%; padding:9px 14px; border:none; border-top:1px solid var(--line); background:none; color:var(--accent); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
   .strip-tabs{ display:flex; gap:6px; align-items:center; overflow-x:auto; scrollbar-width:none; margin-bottom:8px; flex:none; }
   .strip-tabs::-webkit-scrollbar{ display:none; }
   .strip-tabs button[data-strip]{ flex:none; border:1px solid var(--line); background:var(--panel); border-radius:20px; padding:6px 12px; font-size:13px; font-weight:600; color:var(--dim); cursor:pointer; white-space:nowrap; }
@@ -1058,11 +1062,11 @@
     } else {
       html += '<div class="att"><div class="att-row"><span class="att-ic">✅</span><span class="att-b"><span class="att-t">All caught up</span><span class="att-s">Nothing needs you right now</span></span></div></div>';
     }
-    // custom design: one big button that fills the rest of the screen
+    // custom design: a compact card at the foot of Home
     var mine = pjb.list.length;
-    html += '<button class="bigcustom" data-a="pj-request"><span class="bc-ic">' + ICONS.custom + '</span><span class="bc-t">Request a custom design</span>' +
-      '<span class="bc-s">Your idea, made by our designers</span></button>' +
-      (mine ? '<button class="link" style="align-self:center;padding:0" data-a="home-go" data-go2="orders" data-seg2="custom">Your custom designs (' + mine + ') ›</button>' : '');
+    html += '<div class="bigcustom"><button class="bc-main" data-a="pj-request"><span class="bc-ic">' + ICONS.custom + '</span>' +
+      '<span class="bc-b"><span class="bc-t">Custom design</span><span class="bc-s">Your idea, made by us</span></span><span class="bc-go">Start</span></button>' +
+      (mine ? '<button class="bc-mine" data-a="home-go" data-go2="orders" data-seg2="custom"><span>Your custom designs (' + mine + ')</span><span>›</span></button>' : '') + '</div>';
     return html + '</div>';
   }
   var homeStrip = 'trending';
